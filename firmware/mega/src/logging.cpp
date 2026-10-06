@@ -26,6 +26,7 @@ bool     sd_available    = false;
 uint16_t current_index   = 0;
 uint32_t current_size    = 0;
 uint32_t last_log_ms     = 0;
+File     current_log_file;
 
 void format_filename(char* out, size_t n, uint16_t idx) {
     snprintf_P(out, n, PSTR("LOG%04u.CSV"), idx);
@@ -65,51 +66,57 @@ void write_header(File& f) {
 }
 
 bool start_new_file() {
+    if (current_log_file) {
+        current_log_file.close();
+    }
+
     current_index += 1;
     char name[16];
     format_filename(name, sizeof(name), current_index);
-    File f = SD.open(name, FILE_WRITE);
-    if (!f) return false;
-    write_header(f);
-    current_size = f.size();
-    f.close();
+    current_log_file = SD.open(name, FILE_WRITE);
+    if (!current_log_file) return false;
+
+    write_header(current_log_file);
+    current_size = current_log_file.size();
     prune_old_files();
     return true;
 }
 
 void write_row(const SensorData& s, const SystemState& st) {
-    char name[16];
-    format_filename(name, sizeof(name), current_index);
-    File f = SD.open(name, FILE_WRITE);
-    if (!f) return;
+    if (!current_log_file) return;
 
-    f.print(millis());           f.print(',');
-    f.print(s.o2_pct, 2);        f.print(',');
-    f.print(s.h2_ppm, 0);        f.print(',');
-    f.print(s.h2s_ppm, 2);       f.print(',');
-    f.print(s.o3_ppm, 2);        f.print(',');
-    f.print(s.eco2_ppm, 0);      f.print(',');
-    f.print(s.p_big_hpa, 1);     f.print(',');
-    f.print(s.p_small_hpa, 1);   f.print(',');
-    f.print(s.t_catalyst, 1);    f.print(',');
-    f.print(s.t_chamber_heater, 1); f.print(',');
-    f.print(s.t_chamber, 1);     f.print(',');
-    f.print((int)(heater_getCatalystSetpoint() + 0.5f)); f.print(',');
-    f.print((int)(heater_getChamberSetpoint() + 0.5f));  f.print(',');
-    f.print(opsStateToString(st.ops));         f.print(',');
-    f.print(thermalStateToString(st.thermal)); f.print(',');
-    f.print(faultCodeToString(st.fault));      f.print(',');
-    f.print(st.pump_on ? 1 : 0); f.print(',');
-    f.print(st.solenoid_on ? 1 : 0); f.print(',');
-    f.print(st.catalyst_pwm);    f.print(',');
-    f.print(st.chamber_pwm);     f.print(',');
-    f.print(s.warmup_remaining_s); f.print(',');
-    f.print(st.uptime_s);        f.print(',');
-    f.print(st.purge_cycle);     f.print(',');
-    f.print(st.purge_total);     f.print('\n');
+    current_log_file.print(millis());           current_log_file.print(',');
+    current_log_file.print(s.o2_pct, 2);        current_log_file.print(',');
+    current_log_file.print(s.h2_ppm, 0);        current_log_file.print(',');
+    current_log_file.print(s.h2s_ppm, 2);       current_log_file.print(',');
+    current_log_file.print(s.o3_ppm, 2);        current_log_file.print(',');
+    current_log_file.print(s.eco2_ppm, 0);      current_log_file.print(',');
+    current_log_file.print(s.p_big_hpa, 1);     current_log_file.print(',');
+    current_log_file.print(s.p_small_hpa, 1);   current_log_file.print(',');
+    current_log_file.print(s.t_catalyst, 1);    current_log_file.print(',');
+    current_log_file.print(s.t_chamber_heater, 1); current_log_file.print(',');
+    current_log_file.print(s.t_chamber, 1);     current_log_file.print(',');
+    current_log_file.print((int)(heater_getCatalystSetpoint() + 0.5f)); current_log_file.print(',');
+    current_log_file.print((int)(heater_getChamberSetpoint() + 0.5f));  current_log_file.print(',');
+    current_log_file.print(opsStateToString(st.ops));         current_log_file.print(',');
+    current_log_file.print(thermalStateToString(st.thermal)); current_log_file.print(',');
+    current_log_file.print(faultCodeToString(st.fault));      current_log_file.print(',');
+    current_log_file.print(st.pump_on ? 1 : 0); current_log_file.print(',');
+    current_log_file.print(st.solenoid_on ? 1 : 0); current_log_file.print(',');
+    current_log_file.print(st.catalyst_pwm);    current_log_file.print(',');
+    current_log_file.print(st.chamber_pwm);     current_log_file.print(',');
+    current_log_file.print(s.warmup_remaining_s); current_log_file.print(',');
+    current_log_file.print(st.uptime_s);        current_log_file.print(',');
+    current_log_file.print(st.purge_cycle);     current_log_file.print(',');
+    current_log_file.print(st.purge_total);     current_log_file.print('\n');
 
-    current_size = (uint32_t)f.size();
-    f.close();
+    current_size = (uint32_t)current_log_file.size();
+
+    static uint8_t flush_counter = 0;
+    if (++flush_counter >= 10) {
+        current_log_file.flush();
+        flush_counter = 0;
+    }
 }
 
 }  // namespace
