@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nadzor anaerobne komore</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
+</head>
+<body>
+    <header>
+        <h1 data-i18n="app.title">Nadzor anaerobne komore</h1>
+        <div class="header-right">
+            <button id="settings-open" class="header-btn" type="button" data-i18n="header.settings">Postavke</button>
+            <button id="import-btn" class="header-btn" type="button" data-i18n="header.import">Uvezi CSV</button>
+            <button id="back-live-btn" class="header-btn header-btn-accent hidden" type="button" data-i18n="header.back_live">Natrag na uživo</button>
+            <input type="file" id="csv-input" accept=".csv,text/csv" hidden>
+            <button id="lang-toggle" class="lang-toggle" type="button" data-i18n="header.lang">EN</button>
+            <span id="connection-status" class="status-disconnected" data-i18n="header.disconnected">Odspojeno</span>
+        </div>
+    </header>
+
+    <div id="settings-modal" class="modal hidden">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h2 data-i18n="settings.title">Postavke komore</h2>
+                <button id="settings-close" class="modal-close" type="button" aria-label="Close">×</button>
+            </header>
+
+            <section class="modal-section">
+                <h3 data-i18n="settings.conditions">Uvjeti</h3>
+                <div class="settings-row">
+                    <label for="settings-sp-cat" data-i18n="settings.sp_cat">Setpoint katalizatora</label>
+                    <input type="range" id="settings-sp-cat" min="40" max="58" step="1" value="50">
+                    <span id="settings-sp-cat-display" class="settings-value">50 °C</span>
+                </div>
+                <div class="settings-row">
+                    <label for="settings-sp" data-i18n="settings.sp_chm">Setpoint komore</label>
+                    <input type="range" id="settings-sp" min="25" max="43" step="1" value="37">
+                    <span id="settings-sp-display" class="settings-value">37 °C</span>
+                </div>
+                <div class="settings-row">
+                    <label><input type="checkbox" id="settings-cat"> <span data-i18n="settings.heater_cat">Grijač katalizatora</span></label>
+                    <label><input type="checkbox" id="settings-chm"> <span data-i18n="settings.heater_chm">Grijač komore</span></label>
+                    <label><input type="checkbox" id="settings-log" checked> <span data-i18n="settings.logging">Aktivno logiranje</span></label>
+                </div>
+                <div class="settings-row settings-row-end">
+                    <button id="settings-apply" class="header-btn header-btn-accent" type="button" data-i18n="settings.apply">Primijeni</button>
+                </div>
+            </section>
+
+            <section class="modal-section">
+                <h3 data-i18n="settings.actions">Akcije</h3>
+                <div class="settings-row">
+                    <button id="settings-purge-small" class="header-btn" type="button" data-i18n="settings.purge_small">Pokreni mali purge</button>
+                    <button id="settings-purge-big" class="header-btn" type="button" data-i18n="settings.purge_big">Pokreni veliki purge</button>
+                    <button id="settings-abort" class="header-btn header-btn-warn" type="button" data-i18n="settings.abort">Prekini sve</button>
+                </div>
+                <p class="settings-hint" data-i18n="settings.actions_hint">Akcije se ne spremaju u predloške — uvijek su eksplicitne.</p>
+            </section>
+
+            <section class="modal-section">
+                <h3 data-i18n="settings.templates">Predlošci</h3>
+                <ul id="settings-template-list" class="settings-template-list">
+                    <li class="settings-template-empty" data-i18n="settings.loading">Učitavanje…</li>
+                </ul>
+                <div class="settings-row">
+                    <input type="text" id="settings-template-name" placeholder="" data-i18n-placeholder="settings.template_name_placeholder" class="toolbar-input">
+                    <button id="settings-template-save" class="header-btn" type="button" data-i18n="settings.save_current">Spremi trenutno</button>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <div id="history-banner" class="history-banner hidden">
+        <span data-i18n="history.banner">Povijesni pregled</span>:
+        <strong id="history-filename">—</strong>
+        <span class="history-meta">
+            <span id="history-rows">0</span> <span data-i18n="history.rows">redaka</span>,
+            <span data-i18n="history.duration">trajanje</span>
+            <span id="history-duration">—</span>
+        </span>
+    </div>
+
+    <div class="toolbar">
+        <div class="toolbar-group">
+            <span class="toolbar-label" data-i18n="toolbar.metrics">Metrike</span>
+            <div id="metric-toggles" class="metric-toggles"></div>
+        </div>
+        <div class="toolbar-group">
+            <span class="toolbar-label" data-i18n="toolbar.range">Raspon</span>
+            <input type="datetime-local" id="range-from" class="toolbar-input" step="1">
+            <span class="toolbar-sep">–</span>
+            <input type="datetime-local" id="range-to" class="toolbar-input" step="1">
+            <button id="range-apply" class="header-btn" type="button" data-i18n="toolbar.apply">Primijeni</button>
+            <button id="range-reset" class="header-btn" type="button" data-i18n="toolbar.reset">Resetiraj</button>
+        </div>
+        <div class="toolbar-group toolbar-group-end">
+            <button id="export-csv" class="header-btn header-btn-accent" type="button" data-i18n="toolbar.export">Izvoz CSV</button>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <aside class="live-values">
+            <h2 data-i18n="section.live">Trenutne vrijednosti</h2>
+            <div class="sensor-group">
+                <h3 data-i18n="section.gas">Senzori plinova</h3>
+                <div class="value-row"><span data-i18n="label.o2">O₂</span><span id="v-o2">--</span><span>%</span></div>
+                <div class="value-row"><span data-i18n="label.h2">H₂</span><span id="v-h2">--</span><span>ppm</span></div>
+                <div class="value-row"><span data-i18n="label.h2s">H₂S</span><span id="v-h2s">--</span><span>ppm</span></div>
+                <div class="value-row"><span data-i18n="label.o3">O₃</span><span id="v-o3">--</span><span>ppm</span></div>
+                <div class="value-row"><span data-i18n="label.co2">CO₂</span><span id="v-co2">--</span><span>ppm</span></div>
+            </div>
+            <div class="sensor-group">
+                <h3 data-i18n="section.pressure">Tlak</h3>
+                <div class="value-row"><span data-i18n="label.pb">P velika</span><span id="v-pb">--</span><span>hPa</span></div>
+                <div class="value-row"><span data-i18n="label.ps">P mala</span><span id="v-ps">--</span><span>hPa</span></div>
+            </div>
+            <div class="sensor-group">
+                <h3 data-i18n="section.temperature">Temperatura</h3>
+                <div class="value-row"><span data-i18n="label.tc">T kat.</span><span id="v-tc">--</span><span>&deg;C</span></div>
+                <div class="value-row"><span data-i18n="label.th">T grijač</span><span id="v-th">--</span><span>&deg;C</span></div>
+                <div class="value-row"><span data-i18n="label.ta">T komora</span><span id="v-ta">--</span><span>&deg;C</span></div>
+                <div class="value-row sp-row"><span data-i18n="label.sp_chm">SP komora</span><span id="v-sp-chm">--</span><span>&deg;C</span></div>
+                <div class="value-row sp-row"><span data-i18n="label.sp_cat">SP kat.</span><span id="v-sp-cat">--</span><span>&deg;C</span></div>
+            </div>
+            <div class="sensor-group">
+                <h3 data-i18n="section.status">Status</h3>
+                <div class="value-row"><span data-i18n="label.state">Stanje</span><span id="v-state">--</span></div>
+                <div class="value-row"><span data-i18n="label.thermal">Toplinski</span><span id="v-thermal">--</span></div>
+                <div class="value-row"><span data-i18n="label.fault">Greška</span><span id="v-fault">--</span></div>
+                <div class="value-row"><span data-i18n="label.purge">Ispiranje</span><span id="v-purge">--</span></div>
+                <div class="value-row"><span data-i18n="label.warmup">Zagrijavanje</span><span id="v-warmup">--</span></div>
+            </div>
+        </aside>
+
+        <main class="charts">
+            <div id="chart-gas" class="chart"></div>
+            <div id="chart-pressure" class="chart"></div>
+            <div id="chart-temp" class="chart"></div>
+        </main>
+    </div>
+
+    <script src="js/i18n.js"></script>
+    <script src="js/data-buffer.js"></script>
+    <script src="js/mqtt-handler.js"></script>
+    <script src="js/mock-data.js"></script>
+    <script src="js/history.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/toolbar.js"></script>
+    <script src="js/settings.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
