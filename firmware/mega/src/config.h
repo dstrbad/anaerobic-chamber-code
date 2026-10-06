@@ -83,8 +83,8 @@ constexpr uint32_t PURGE_SMALL_TIMEOUT_MS   = 90000;    // 60s po fazi
 
 // --- Parametri pročišćavanja (velika komora) ---------------------------------
 
-constexpr uint8_t  PURGE_BIG_CYCLES         = 7;
-constexpr float    PURGE_BIG_DP_HPA         = 50.0f;    // Blagi pad tlaka
+constexpr uint8_t  PURGE_BIG_CYCLES         = 10;
+constexpr float    PURGE_BIG_DP_HPA         = 10.0f;    // Blagi pad tlaka
 constexpr float    PURGE_BIG_FLOOR_HPA      = 937.0f;   // ~0.925 atm apsolutni min
 constexpr uint32_t PURGE_BIG_TIMEOUT_MS     = 90000;    // 90s po fazi
 
@@ -110,8 +110,8 @@ constexpr uint8_t  EEPROM_MAGIC_VALUE       = 0xA5;
 constexpr float    O2_BIG_PURGE_MAX_PCT     = 3.0f;     // Blokada velikog purge-a iznad ovog
 constexpr float    WATCHDOG_DP_MIN_HPA      = 5.0f;    // Min detektabilna promjena tlaka
 constexpr uint32_t WATCHDOG_WINDOW_MS       = 1500;     // Vrijeme za detekciju promjene tlaka
-constexpr float    OVERPRESSURE_ALARM_HPA   = 50.0f;    // Relativno na referentni tlak
-constexpr float    OVERPRESSURE_CUTOFF_HPA  = 100.0f;   // Tvrd isklop, solenoid ugašen
+constexpr float    OVERPRESSURE_ALARM_HPA   = 25.0f;    // Relativno na referentni tlak
+constexpr float    OVERPRESSURE_CUTOFF_HPA  = 25.0f;   // Tvrd isklop, solenoid ugašen
 constexpr uint32_t TEMP_INVALID_TIMEOUT_MS  = 5000;     // DS18B20 timeout -> grijač ugašen
 constexpr uint32_t MAX_ACTUATOR_ON_MS       = 90000;    // ISR tvrd timeout za aktuatore
 constexpr uint32_t FSM_LIVENESS_TIMEOUT_MS  = 750;     // ISR gasi aktuatore ako FSM stane
@@ -142,5 +142,5 @@ constexpr uint32_t SERIAL_BAUD_USB          = 115200;
 constexpr uint32_t SERIAL_BAUD_ESP32        = 115200;
 
 // --- Offset za tlak ---------------------------------------------------
-constexpr float P_BIG_OFFSET_HPA   = -55.5f;
-constexpr float P_SMALL_OFFSET_HPA =  11.5f;
+constexpr float P_BIG_OFFSET_HPA   = 0;
+constexpr float P_SMALL_OFFSET_HPA =  0;
