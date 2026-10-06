@@ -115,7 +115,7 @@ constexpr float    OVERPRESSURE_CUTOFF_HPA  = 25.0f;   // Tvrd isklop, solenoid 
 constexpr uint32_t TEMP_INVALID_TIMEOUT_MS  = 5000;     // DS18B20 timeout -> grijač ugašen
 constexpr uint32_t MAX_ACTUATOR_ON_MS       = 90000;    // ISR tvrd timeout za aktuatore
 constexpr uint32_t FSM_LIVENESS_TIMEOUT_MS  = 750;     // ISR gasi aktuatore ako FSM stane
-constexpr uint16_t WDT_TIMEOUT              = WDTO_1S;
+constexpr uint16_t WDT_TIMEOUT              = WDTO_2S;
 
 // --- Parametri sučelja -------------------------------------------------------
 
