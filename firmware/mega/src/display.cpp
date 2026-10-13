@@ -198,7 +198,7 @@ static void renderMenuHeating(const SensorData& sensors, const SystemState& stat
     }
 
     char buf[8];
-    char line[24];
+    char line[28];
     u8g2.clearBuffer();
     u8g2.setFont(u8g2_font_5x7_tf);
 
@@ -216,6 +216,13 @@ static void renderMenuHeating(const SensorData& sensors, const SystemState& stat
     dtostrf(sensors.t_chamber, 4, 1, buf);
     snprintf(line, sizeof(line), "Kom %s %s SP=%d", chmOn ? "ON " : "OFF",
              buf, (int)(heater_getChamberSetpoint() + 0.5f));
+    if (chmOn) {
+        // Ciljna T ploče grijača; '!' = na granici, zadana T nedostižna
+        char tail[8];
+        snprintf(tail, sizeof(tail), " H%d%s", (int)(heater_getChamberHeaterTarget() + 0.5f),
+                 heater_isChamberAtLimit() ? "!" : "");
+        strncat(line, tail, sizeof(line) - strlen(line) - 1);
+    }
     u8g2.drawStr(8, 28, line);
 
     u8g2.drawStr(8, 38, "Postavi SP kat.");

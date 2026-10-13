@@ -2,11 +2,18 @@
 #include "config.h"
 #include "actuators.h"
 #include "timers.h"
+#include "purge.h"
+#include <util/atomic.h>
 
-// Stanje watchdog-a za tlak
-static float    watchdog_p_snapshot = 0.0f;
-static uint32_t watchdog_start_ms   = 0;
-static bool     watchdog_active     = false;
+// Granice pretlaka po komori za Timer5 ISR (piše safety_check svaku iteraciju)
+volatile float cached_overp_limit_big   = OVERPRESSURE_ABS_HPA;
+volatile float cached_overp_limit_small = OVERPRESSURE_ABS_HPA;
+
+// Stanje watchdog-a za tlak (prozor: komora koja se pročišćava + druga komora)
+static float    watchdog_p_snapshot     = 0.0f;
+static float    watchdog_other_snapshot = 0.0f;
+static uint32_t watchdog_start_ms       = 0;
+static bool     watchdog_active         = false;
 
 // Praćenje DS18B20 timeout-a
 static uint32_t t_catalyst_invalid_since = 0;
@@ -50,9 +57,18 @@ void safety_check(const SensorData& sensors, SystemState& state) {
     }
 
     // --- Provjera pretlaka ---
-    float p_ref = 1013.25f; // Standardna atmosfera kao referenca
-    if (sensors.p_big_hpa > (p_ref + OVERPRESSURE_CUTOFF_HPA) ||
-        sensors.p_small_hpa > (p_ref + OVERPRESSURE_CUTOFF_HPA)) {
+    // Komora u purge-u: granica izračunata pri pokretanju purge-a (početni
+    // tlak + 25, najviše apsolutna). Inače: apsolutna granica. Iste granice
+    // se keširaju za Timer5 ISR (sloj 2).
+    float limit_big   = (state.ops == OpsState::PURGE_BIG)
+                        ? purge_getOverpressureLimit() : OVERPRESSURE_ABS_HPA;
+    float limit_small = (state.ops == OpsState::PURGE_SMALL)
+                        ? purge_getOverpressureLimit() : OVERPRESSURE_ABS_HPA;
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+        cached_overp_limit_big   = limit_big;
+        cached_overp_limit_small = limit_small;
+    }
+    if (sensors.p_big_hpa > limit_big || sensors.p_small_hpa > limit_small) {
         actuators_solenoidOff();
         state.fault = FaultCode::OVERPRESSURE;
         state.ops = OpsState::FAULT;
@@ -76,30 +92,49 @@ void safety_check(const SensorData& sensors, SystemState& state) {
     }
 
     // --- Watchdog za odziv tlaka ---
+    // Komora koja se pročišćava mora reagirati, druga mora mirovati. Pumpa i
+    // solenoid rade samo tijekom purge-a; ako ops nije PURGE_SMALL, gleda se
+    // velika komora (kao i prije).
     if (actuators_isPumpOn() || actuators_isSolenoidOn()) {
+        const bool small = (state.ops == OpsState::PURGE_SMALL);
+        const float    current_p = small ? sensors.p_small_hpa : sensors.p_big_hpa;
+        const float    other_p   = small ? sensors.p_big_hpa   : sensors.p_small_hpa;
+        const float    dp_min    = small ? WATCHDOG_SMALL_DP_MIN_HPA : WATCHDOG_BIG_DP_MIN_HPA;
+        const uint32_t window_ms = small ? WATCHDOG_SMALL_WINDOW_MS  : WATCHDOG_BIG_WINDOW_MS;
+
         if (!watchdog_active) {
             // Počni praćenje
             watchdog_active = true;
             watchdog_start_ms = millis();
-            watchdog_p_snapshot = (state.ops == OpsState::PURGE_SMALL)
-                                 ? sensors.p_small_hpa
-                                 : sensors.p_big_hpa;
-        } else if ((millis() - watchdog_start_ms) > WATCHDOG_WINDOW_MS) {
-            float current_p = (state.ops == OpsState::PURGE_SMALL)
-                              ? sensors.p_small_hpa
-                              : sensors.p_big_hpa;
-            float dp = fabs(current_p - watchdog_p_snapshot);
-            if (dp < WATCHDOG_DP_MIN_HPA) {
+            watchdog_p_snapshot = current_p;
+            watchdog_other_snapshot = other_p;
+        } else {
+            // Druga komora: provjera svaku iteraciju (krivi ventil s upaljenom
+            // pumpom brzo mijenja tlak — ne čekamo kraj prozora)
+            if (fabs(other_p - watchdog_other_snapshot) > WATCHDOG_OTHER_DP_MAX_HPA) {
                 actuators_pumpOff();
                 actuators_solenoidOff();
-                state.fault = FaultCode::NO_PRESSURE_CHANGE;
+                state.fault = FaultCode::CROSS_CHAMBER_CHANGE;
                 state.ops = OpsState::FAULT;
                 watchdog_active = false;
                 return;
             }
-            // Resetiraj watchdog za nastavak praćenja
-            watchdog_start_ms = millis();
-            watchdog_p_snapshot = current_p;
+
+            // Komora koja se pročišćava: na kraju prozora
+            if ((millis() - watchdog_start_ms) > window_ms) {
+                if (fabs(current_p - watchdog_p_snapshot) < dp_min) {
+                    actuators_pumpOff();
+                    actuators_solenoidOff();
+                    state.fault = FaultCode::NO_PRESSURE_CHANGE;
+                    state.ops = OpsState::FAULT;
+                    watchdog_active = false;
+                    return;
+                }
+                // Resetiraj watchdog za nastavak praćenja (obje komore)
+                watchdog_start_ms = millis();
+                watchdog_p_snapshot = current_p;
+                watchdog_other_snapshot = other_p;
+            }
         }
     } else {
         watchdog_active = false;
@@ -175,6 +210,7 @@ const char* faultCodeToString(FaultCode code) {
         case FaultCode::GLOBAL_ABORT:              return "ABORT";
         case FaultCode::TIMER5_FAULT:              return "TMR5";
         case FaultCode::PRESSURE_SENSOR_LOST:      return "PS_LOST";
+        case FaultCode::CROSS_CHAMBER_CHANGE:      return "X_CHM";
         default:                                   return "UNK";
     }
 }

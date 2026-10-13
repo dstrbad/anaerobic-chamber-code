@@ -94,16 +94,16 @@ Any one of the four layers is enough to stop an actuator from running away. If y
 
 **Layer 2, Timer5 safety ISR at 50 Hz.** Runs independently of the main loop. It cannot read sensors (no I2C in an ISR) but checks the cached values the main loop writes and drives actuator pins directly through port registers:
 
-- Hard thermal limits: catalyst above 60 °C or chamber above 45 °C forces the heater pin low.
+- Hard thermal limits: catalyst above 60 °C or chamber heater above 55 °C forces the heater pin low.
 - Hard overpressure limit forces the solenoid pin low.
 - Actuator timeouts: each actuator records when it was switched on. The main loop must call `refreshTimeout()` every iteration to prove it still wants it on. If the timestamp goes stale (for example 90 s for the pump) the ISR turns it off. This is the FSM liveness guard.
 - FSM heartbeat: each FSM stamps a heartbeat every iteration. If either FSM has not ticked in 750 ms, all actuators go off.
 
 **Layer 3, the `safety.cpp` module in the main loop.** The only layer with full context. It sets fault codes, drives FSM transitions and logs:
 
-- Pressure response watchdog: pump or valve on for more than 1.5 s with no measurable pressure change raises a fault.
-- Overpressure: P above reference plus 50 hPa raises an alarm; above 100 hPa closes the valve and raises a fault.
-- Overtemperature: catalyst above 60 °C or heater above 45 °C turns the heater off and raises a thermal fault.
+- Pressure response watchdog, per chamber: while the pump or valve runs, the purged chamber must change by at least 5 hPa per 1.5 s (small) or 2 hPa per 3 s (big), otherwise `NO_DP`. The other chamber must stay within 3 hPa over the same window; if it moves, a valve is open on the wrong chamber and `X_CHM` stops the pump and valve.
+- Overpressure: closes the valve and raises `OVERP`. Always above 1043 hPa absolute (1013.25 + 30), which weather never reaches, so a leaking valve or heating cannot over-inflate the gloves. During a purge the purged chamber is held to its own pressure at purge start + 25 hPa (never closer than 5 hPa to its own refill target, never above 1043). Layer 2 enforces the same per-chamber limits.
+- Overtemperature: catalyst above 60 °C or chamber heater above 55 °C turns the heater off and raises a thermal fault. The chamber heater is glued to the bottom aluminium panel, so its controller never targets more than 52 °C there.
 - DS18B20 timeout: an invalid reading for more than 5 s while a heater is active turns it off.
 - O2 gate: a large-chamber purge is blocked if O2 is above 3 % (explosion risk with H2 over a palladium catalyst).
 - Global abort: a long button press of about one second turns off pump, valve and both heaters at once.
@@ -189,7 +189,7 @@ firmware/
     sensors.*               BMP280, DS18B20, DFRobot gas sensors
     actuators.*             Pump, valve, heaters, timeout tracking
     purge.*                 Purge cycle sub-states
-    heater.*                Thermal FSM, bang-bang control
+    heater.*                Thermal control: catalyst on/off, chamber cascade PI
     display.*, input.*      OLED pages, joystick and button
     logging.*               SD card CSV
     serial_comm.*, serial_rx.*  JSON to and from the ESP32
@@ -205,7 +205,7 @@ web/                        Dashboard: index.html, css/, js/ (no build step)
 
 ## Configuration
 
-Mega: everything is in `firmware/mega/src/config.h`. Defaults worth knowing: 7 small-purge cycles at 400 hPa drop each, 7 large-purge cycles at 50 hPa each, catalyst setpoint 50 °C (cutoff 60 °C), chamber setpoint 37 °C (cutoff 45 °C), 5 s DS18B20 timeout, 1.5 s pressure watchdog window, 600 s gas sensor warm-up.
+Mega: everything is in `firmware/mega/src/config.h`. Defaults worth knowing: 7 small-purge cycles at 400 hPa drop each, 10 large-purge cycles between the start pressure −5 hPa and +10 hPa, catalyst setpoint 50 °C (cutoff 60 °C), chamber setpoint 37 °C (heater panel at most 52 °C, cutoff 55 °C), 5 s DS18B20 timeout, pressure watchdog 5 hPa per 1.5 s (small) and 2 hPa per 3 s (big) with 3 hPa cross-chamber limit, 600 s gas sensor warm-up.
 
 ESP32: credentials and broker address in `secrets.h`; port, topic prefix (default `anaerobic/chamber1/`) and client ID in `config.h`.
 
@@ -222,7 +222,7 @@ All topics sit under the configurable prefix, default `anaerobic/chamber1/`.
 | `sensor/temp_catalyst`, `sensor/temp_heater`, `sensor/temp_chamber` | float | yes | °C |
 | `status/state` | string | yes | `INIT`, `IDLE`, `PURGE_S`, `PURGE_B`, `FAULT` |
 | `status/thermal` | string | yes | `OFF`, `CAT`, `CHM`, `BOTH`, `FAULT` |
-| `status/fault` | string | yes | `NONE`, `NO_DP`, `OVERP`, `OT_CAT`, `OT_CHM`, `TS_CAT`, `TS_CHM`, `O2_HI`, `ISR`, `ABORT`, `TMR5`, `PS_LOST` |
+| `status/fault` | string | yes | `NONE`, `NO_DP`, `OVERP`, `OT_CAT`, `OT_CHM`, `TS_CAT`, `TS_CHM`, `O2_HI`, `ISR`, `ABORT`, `TMR5`, `PS_LOST`, `X_CHM` |
 | `status/purge_progress` | JSON | yes | `{"current": 3, "total": 7}` |
 | `status/uptime`, `status/warmup` | int | yes | Seconds |
 | `status/esp_reset` | JSON | yes | ESP32 reset cause on each MQTT connect, `{"reason": "TASK_WDT", "up_s": 12}` |

@@ -81,6 +81,8 @@ void serial_comm_send(const SensorData& sensors, const SystemState& state) {
     // Setpointi grijača (oba korisnički podesiva, čuvaju se u EEPROM-u)
     addFloat("sp_cat", heater_getCatalystSetpoint(), 0);
     addFloat("sp_chm", heater_getChamberSetpoint(), 0);
+    addFloat("th_sp",  heater_getChamberHeaterTarget(), 1); // ciljna T ploče (kaskada)
+    addUint("th_lim",  heater_isChamberAtLimit() ? 1 : 0);  // cilj zapeo na PLATE_MAX
 
     // Stanje
     addStr("st", opsStateToString(state.ops));

@@ -88,8 +88,13 @@ constexpr uint32_t PURGE_SMALL_TIMEOUT_MS   = 90000;    // 60s po fazi
 
 // --- Parametri pročišćavanja (velika komora) ---------------------------------
 
+// Velika komora slabo podnosi vakuum: ciklus između (početni tlak - 5 hPa) i
+// (početni tlak + 10 hPa). Referenca je tlak velike komore u trenutku
+// pokretanja purge-a (≈ tlak prostorije), pa ne ovisi o vremenu ni offsetu.
 constexpr uint8_t  PURGE_BIG_CYCLES         = 10;
-constexpr float    PURGE_BIG_DP_HPA         = 10.0f;    // Blagi pad tlaka
+constexpr float    PURGE_BIG_LOW_REL_HPA    = -5.0f;    // Evakuacija do ref - 5 hPa
+constexpr float    PURGE_BIG_HIGH_REL_HPA   = 10.0f;    // Punjenje do ref + 10 hPa
+constexpr float    PURGE_REFILL_MARGIN_HPA  = 5.0f;     // Cilj punjenja uvijek ovoliko ispod granice pretlaka
 constexpr float    PURGE_BIG_FLOOR_HPA      = 937.0f;   // ~0.925 atm apsolutni min
 constexpr uint32_t PURGE_BIG_TIMEOUT_MS     = 90000;    // 90s po fazi
 
@@ -100,24 +105,44 @@ constexpr float    HEATER_CAT_SETPOINT_MIN_C = 40.0f;   // Donja granica (ispod 
 constexpr float    HEATER_CAT_SETPOINT_MAX_C = 58.0f;   // 2C ispod tvrdog isklopa
 constexpr float    HEATER_CHM_SETPOINT_C    = 37.0f;    // Tvornička zadana vrijednost komore
 constexpr float    HEATER_CHM_SETPOINT_MIN_C = 25.0f;
-constexpr float    HEATER_CHM_SETPOINT_MAX_C = 43.0f;   // 2C ispod tvrdog isklopa
+constexpr float    HEATER_CHM_SETPOINT_MAX_C = 43.0f;   // Zadana T zraka u komori (ne ploče grijača)
 constexpr float    HEATER_CAT_MAX_C         = 60.0f;    // Sigurnosni isklop
-constexpr float    HEATER_CHM_MAX_C         = 45.0f;    // Sigurnosni isklop
+// Grijač komore je zalijepljen na donju aluminijsku ploču koju ljudi mogu
+// dodirnuti. Regulacija nikad ne cilja iznad PLATE_MAX; MAX je tvrdi isklop
+// (sloj 2 + 3) na senzoru grijača, s rezervom za prebačaj.
+constexpr float    HEATER_CHM_PLATE_MAX_C   = 52.0f;    // Najviša ciljna T ploče grijača
+constexpr float    HEATER_CHM_MAX_C         = 55.0f;    // Sigurnosni isklop (senzor grijača)
 
 // --- EEPROM postavke ---------------------------------------------------------
 constexpr uint16_t EEPROM_ADDR_MAGIC        = 0;
 constexpr uint16_t EEPROM_ADDR_CHM_SP       = 1;        // uint8_t, °C, cijeli broj
 constexpr uint16_t EEPROM_ADDR_CAT_SP       = 2;        // uint8_t, °C, cijeli broj
 constexpr uint16_t EEPROM_ADDR_BOOT_COUNT   = 3;        // uint16_t (3..4), broj pokretanja
+constexpr uint16_t EEPROM_ADDR_CHM_RATIO    = 5;        // float (5..8), naučeni omjer grijača komore
 constexpr uint8_t  EEPROM_MAGIC_VALUE       = 0xA5;
 
 // --- Sigurnosni pragovi ------------------------------------------------------
 
 constexpr float    O2_BIG_PURGE_MAX_PCT     = 3.0f;     // Blokada velikog purge-a iznad ovog
-constexpr float    WATCHDOG_DP_MIN_HPA      = 5.0f;    // Min detektabilna promjena tlaka
-constexpr uint32_t WATCHDOG_WINDOW_MS       = 1500;     // Vrijeme za detekciju promjene tlaka
-constexpr float    OVERPRESSURE_ALARM_HPA   = 25.0f;    // Relativno na referentni tlak
-constexpr float    OVERPRESSURE_CUTOFF_HPA  = 25.0f;   // Tvrd isklop, solenoid ugašen
+// Nadzor tlačnog odziva dok rade pumpa/solenoid, po komori:
+//  - komora koja se pročišćava mora promijeniti tlak barem DP_MIN u prozoru
+//    (pumpa/ventil stvarno djeluju),
+//  - druga komora se u istom prozoru smije promijeniti najviše OTHER_DP_MAX
+//    (krivo otvoren ventil djeluje na pogrešnu komoru).
+// Velika komora je sporija (slabo podnosi vakuum), pa ima blaži prag i dulji prozor.
+constexpr float    WATCHDOG_SMALL_DP_MIN_HPA = 5.0f;   // Mala komora: min promjena u prozoru
+constexpr uint32_t WATCHDOG_SMALL_WINDOW_MS  = 1500;
+constexpr float    WATCHDOG_BIG_DP_MIN_HPA   = 2.0f;   // Velika komora: min promjena u prozoru
+constexpr uint32_t WATCHDOG_BIG_WINDOW_MS    = 3000;
+constexpr float    WATCHDOG_OTHER_DP_MAX_HPA = 3.0f;   // Druga komora: max promjena u prozoru
+// Pretlak (isklop solenoida + greška OVERP), po komori:
+//  - uvijek: apsolutna granica OVERPRESSURE_ABS_HPA (štiti rukavice ako
+//    solenoid propušta ili grijanje digne tlak; vrijeme to ne dostiže),
+//  - tijekom purge-a, za komoru koja se pročišćava: tlak na početku purge-a
+//    + OVERPRESSURE_PURGE_REL_HPA, ali nikad bliže od REFILL_MARGIN iznad
+//    vlastitog cilja punjenja, i nikad iznad apsolutne granice.
+constexpr float    OVERPRESSURE_ABS_HPA      = 1013.25f + 30.0f; // 1043.25 hPa apsolutno
+constexpr float    OVERPRESSURE_PURGE_REL_HPA = 25.0f;
 constexpr uint32_t TEMP_INVALID_TIMEOUT_MS  = 5000;     // DS18B20 timeout -> grijač ugašen
 constexpr uint32_t PRESSURE_INVALID_TIMEOUT_MS = 500;   // Nema ispravnog tlaka dok pumpa/solenoid rade -> isklop
 constexpr uint32_t MAX_ACTUATOR_ON_MS       = 90000;    // ISR tvrd timeout za aktuatore

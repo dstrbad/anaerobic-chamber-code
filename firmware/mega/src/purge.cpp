@@ -17,6 +17,7 @@ static uint8_t    cycle       = 0;
 static uint8_t    totalCycles = 0;
 static float      targetP     = 0.0f;
 static float      refillP     = 0.0f;
+static float      overpLimit  = OVERPRESSURE_ABS_HPA;  // granica pretlaka komore u purge-u
 static uint32_t   phaseStart  = 0;
 static uint32_t   timeout_ms  = 0;
 static bool       isBigPurge  = false;
@@ -44,6 +45,14 @@ void purge_startSmall(const SensorData& sensors, SystemState& state) {
     targetP = max(startP - PURGE_SMALL_DP_HPA, PURGE_SMALL_FLOOR_HPA);
     // Cilj punjenja: max od P_big, 1 atm (1013.25 hPa), ili početni tlak
     refillP = max(max(sensors.p_big_hpa, 1013.25f), startP) - 15.0f; // Blagi pad za sigurnost
+    refillP = min(refillP, OVERPRESSURE_ABS_HPA - PURGE_REFILL_MARGIN_HPA);
+
+    // Granica pretlaka: početni tlak + 25, ali ne ispod vlastitog cilja
+    // punjenja + margina (mala komora ostavljena u podtlaku puni se natrag
+    // prema atmosferi, što nije pretlak), i nikad iznad apsolutne granice.
+    overpLimit = min(max(startP + OVERPRESSURE_PURGE_REL_HPA,
+                         refillP + PURGE_REFILL_MARGIN_HPA),
+                     OVERPRESSURE_ABS_HPA);
 
     state.purge_cycle = 0;
     state.purge_total = totalCycles;
@@ -58,9 +67,14 @@ void purge_startBig(const SensorData& sensors, SystemState& state) {
     cycle = 0;
     timeout_ms = PURGE_BIG_TIMEOUT_MS;
 
-    float startP = sensors.p_big_hpa;
-    targetP = max(startP - PURGE_BIG_DP_HPA, PURGE_BIG_FLOOR_HPA);
-    refillP = startP;
+    // Oba cilja su fiksna za cijeli purge, relativno na tlak pri pokretanju:
+    // evakuacija do ref - 5, punjenje do ref + 10. Granica pretlaka je
+    // ref + 25 (najviše apsolutna granica); punjenje se drži barem marginu
+    // ispod nje, pa visok početni tlak sužava pojas umjesto da izazove OVERP.
+    float refP = sensors.p_big_hpa;
+    overpLimit = min(refP + OVERPRESSURE_PURGE_REL_HPA, OVERPRESSURE_ABS_HPA);
+    targetP = max(refP + PURGE_BIG_LOW_REL_HPA, PURGE_BIG_FLOOR_HPA);
+    refillP = min(refP + PURGE_BIG_HIGH_REL_HPA, overpLimit - PURGE_REFILL_MARGIN_HPA);
 
     state.purge_cycle = 0;
     state.purge_total = totalCycles;
@@ -177,8 +191,7 @@ void purge_tickBig(const SensorData& sensors, SystemState& state) {
                 if (cycle >= totalCycles) {
                     phase = PurgePhase::DONE;
                 } else {
-                    float startP = sensors.p_big_hpa;
-                    targetP = max(startP - PURGE_BIG_DP_HPA, PURGE_BIG_FLOOR_HPA);
+                    // targetP/refillP ostaju iz purge_startBig (fiksni pojas)
                     startEvacuation();
                 }
             }
@@ -191,4 +204,8 @@ void purge_tickBig(const SensorData& sensors, SystemState& state) {
 
 bool purge_isDone() {
     return phase == PurgePhase::DONE;
+}
+
+float purge_getOverpressureLimit() {
+    return overpLimit;
 }

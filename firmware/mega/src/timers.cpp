@@ -19,6 +19,10 @@ extern volatile float cached_t_chamber_heater;
 extern volatile float cached_p_big;
 extern volatile float cached_p_small;
 
+// Granice pretlaka po komori (piše safety_check; apsolutna ili granica purge-a)
+extern volatile float cached_overp_limit_big;
+extern volatile float cached_overp_limit_small;
+
 // Vremenske oznake aktuatora (piše actuators modul)
 extern volatile uint32_t pump_on_since;
 extern volatile uint32_t solenoid_on_since;
@@ -129,8 +133,8 @@ ISR(TIMER5_OVF_vect) {
     }
 
     // Tvrdi limit pretlaka — ugasi solenoid (D23 = PA1)
-    if (cached_p_big > (1013.25f + OVERPRESSURE_CUTOFF_HPA) ||
-        cached_p_small > (1013.25f + OVERPRESSURE_CUTOFF_HPA)) {
+    if (cached_p_big > cached_overp_limit_big ||
+        cached_p_small > cached_overp_limit_small) {
         PORTA &= ~(1 << PA1);
     }
 

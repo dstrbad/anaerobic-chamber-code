@@ -7,6 +7,12 @@ void heater_init();
 void heater_tickCatalyst(const SensorData& sensors, SystemState& state);
 void heater_tickChamber(const SensorData& sensors, SystemState& state);
 
+// Kaskadna regulacija komore: trenutna ciljna T ploče grijača (0 kad grijač
+// komore ne radi) i je li cilj zapeo na HEATER_CHM_PLATE_MAX_C dok je komora
+// još ispod SP (zadana T nedostižna uz dopuštenu T ploče).
+float heater_getChamberHeaterTarget();
+bool  heater_isChamberAtLimit();
+
 // Runtime setpointi grijača — korisnik mijenja preko OLED UI ili MQTT komande.
 // Postavljaju se na zadane vrijednosti iz config.h ako EEPROM nije inicijaliziran.
 // Sve set/save/reload funkcije klampuju u sigurni raspon iz config.h.
