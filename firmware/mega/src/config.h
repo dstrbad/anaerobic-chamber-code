@@ -84,7 +84,7 @@ constexpr float    P_PLAUSIBLE_MAX_HPA = 1200.0f;
 constexpr uint8_t  PURGE_SMALL_CYCLES       = 7;
 constexpr float    PURGE_SMALL_DP_HPA       = 400.0f;   // Ciljni pad tlaka
 constexpr float    PURGE_SMALL_FLOOR_HPA    = 550.0f;   // ~0.550 atm apsolutni min
-constexpr uint32_t PURGE_SMALL_TIMEOUT_MS   = 90000;    // 60s po fazi
+constexpr uint32_t PURGE_SMALL_TIMEOUT_MS   = 90000;    // 90s po fazi
 
 // --- Parametri pročišćavanja (velika komora) ---------------------------------
 

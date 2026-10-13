@@ -35,7 +35,11 @@ void fsm_tickOperations(const SensorData& sensors, SystemState& state) {
             break;
 
         case OpsState::FAULT:
-            // Aktuatori već ugašeni od sigurnosnog modula.
+            // Pneumatika uvijek ugašena u FAULT-u, bez obzira na izvor greške:
+            // OVERP gasi samo solenoid, a ISR gasi pinove mimo actuators
+            // modula (zastavice bi ostale "on"). Grijači imaju vlastiti HEAT_FAULT.
+            actuators_pumpOff();
+            actuators_solenoidOff();
             // Ostani ovdje dok korisnik ne potvrdi (pritisak tipkala).
             if (input_buttonPressed()) {
                 state.fault = FaultCode::NONE;
