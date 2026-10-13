@@ -222,7 +222,7 @@ All topics sit under the configurable prefix, default `anaerobic/chamber1/`.
 | `sensor/temp_catalyst`, `sensor/temp_heater`, `sensor/temp_chamber` | float | yes | °C |
 | `status/state` | string | yes | `INIT`, `IDLE`, `PURGE_S`, `PURGE_B`, `FAULT` |
 | `status/thermal` | string | yes | `OFF`, `CAT`, `CHM`, `BOTH`, `FAULT` |
-| `status/fault` | string | yes | `NONE`, `NO_DP`, `OVERP`, `OT_CAT`, `OT_CHM`, `TS_CAT`, `TS_CHM`, `O2_HI`, `ISR`, `ABORT` |
+| `status/fault` | string | yes | `NONE`, `NO_DP`, `OVERP`, `OT_CAT`, `OT_CHM`, `TS_CAT`, `TS_CHM`, `O2_HI`, `ISR`, `ABORT`, `TMR5` |
 | `status/purge_progress` | JSON | yes | `{"current": 3, "total": 7}` |
 | `status/uptime`, `status/warmup` | int | yes | Seconds |
 | `actuator/pump`, `actuator/solenoid` | int | yes | 0 or 1 |

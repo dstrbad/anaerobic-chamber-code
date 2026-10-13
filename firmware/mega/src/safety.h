@@ -14,6 +14,7 @@ enum class FaultCode : uint8_t {
     O2_TOO_HIGH_FOR_BIG_PURGE,  // O2 previsok za veliki purge
     ISR_SAFETY_TRIGGERED,       // ISR sigurnosni isklop
     GLOBAL_ABORT,               // Globalni prekid
+    TIMER5_FAULT,               // Timer5 (sigurnosni ISR + PWM grijača) pokvaren/zaustavljen
 };
 
 // Stanja operacijskog FSM-a

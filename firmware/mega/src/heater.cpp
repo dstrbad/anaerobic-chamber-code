@@ -7,10 +7,10 @@
 static constexpr float HYSTERESIS = 1.0f; // +/- 1 C oko zadane vrijednosti
 static constexpr float CHM_HEATER_BOOST_C = 3.0f; // grijač komore smije biti do +3 C iznad zadane T komore
 static constexpr float CAT_HYSTERESIS = 1.0f;
-static constexpr float CAT_SOFT_ZONE_C = 15.0f;   // start slowing 15 C before setpoint
-static constexpr uint8_t CAT_PWM_FULL = 255;
-static constexpr uint8_t CAT_PWM_SOFT = 140;     
-static constexpr uint8_t CAT_PWM_HOLD = 80;  
+
+// Katalizator: čisti ON/OFF (255/0), kako je testirano na komori. Pravi PWM
+// na D44/D45 radi od prelaska Timer5 na Fast PWM (timers.cpp), pa se ovdje
+// mogu vratiti međustupnjevi snage ako zatreba.
 
 // Runtime setpointi — mijenjaju se iz UI/MQTT-a, traju preko EEPROM-a.
 static float runtime_cat_setpoint = HEATER_CAT_SETPOINT_C;
@@ -74,20 +74,10 @@ void heater_tickCatalyst(const SensorData& sensors, SystemState& state) {
 
     uint8_t pwm = state.catalyst_pwm;
 
-    if (t < (setpoint - CAT_SOFT_ZONE_C)) {
-        // Far from target: heat fast
-        pwm = CAT_PWM_FULL;
-
-    } else if (t < (setpoint - CAT_HYSTERESIS)) {
-        // Close to target: slow down to reduce overshoot
-        pwm = CAT_PWM_SOFT;
-
-    } else if (t < setpoint) {
-        // Very close: gentle heating / holding
-        pwm = CAT_PWM_HOLD;
-
+    // Bang-bang s histerezom; unutar pojasa zadrži prethodno stanje
+    if (t < (setpoint - CAT_HYSTERESIS)) {
+        pwm = 255;
     } else if (t > (setpoint + CAT_HYSTERESIS)) {
-        // Above upper band: off
         pwm = 0;
     }
 

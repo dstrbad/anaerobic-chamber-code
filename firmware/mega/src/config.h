@@ -64,7 +64,8 @@ constexpr const uint8_t* ROM_T_CHAMBER        = DS18B20_ROM_0; // TODO: potvrdi
 constexpr uint8_t TIMER1_FREQ_HZ     = 10;    // Očitanje tlaka
 constexpr uint8_t TIMER3_FREQ_HZ     = 1;     // Plinovi + temperatura + serijski TX
 constexpr uint8_t TIMER4_FREQ_HZ     = 20;    // Osvježavanje ekrana + unos
-constexpr uint8_t TIMER5_FREQ_HZ     = 50;    // Sigurnosni ISR
+constexpr uint8_t TIMER5_FREQ_HZ     = 50;    // Sigurnosni ISR + PWM grijača (D44/D45)
+constexpr uint16_t TIMER5_TOP        = (62500 / TIMER5_FREQ_HZ) - 1; // ICR5, predjelitelj 256
 
 // --- Parametri senzora -------------------------------------------------------
 
@@ -142,5 +143,5 @@ constexpr uint32_t SERIAL_BAUD_USB          = 115200;
 constexpr uint32_t SERIAL_BAUD_ESP32        = 115200;
 
 // --- Offset za tlak ---------------------------------------------------
-constexpr float P_BIG_OFFSET_HPA   = 0;
-constexpr float P_SMALL_OFFSET_HPA =  0;
+constexpr float P_BIG_OFFSET_HPA   = -55.5f;
+constexpr float P_SMALL_OFFSET_HPA =  11.5f;

@@ -1,6 +1,7 @@
 #include "safety.h"
 #include "config.h"
 #include "actuators.h"
+#include "timers.h"
 
 // Stanje watchdog-a za tlak
 static float    watchdog_p_snapshot = 0.0f;
@@ -19,6 +20,19 @@ void safety_check(const SensorData& sensors, SystemState& state) {
     state.uptime_s = millis() / 1000;
     state.pump_on = actuators_isPumpOn();
     state.solenoid_on = actuators_isSolenoidOn();
+
+    // --- Provjera Timer5 (sigurnosni ISR + PWM grijača) ---
+    // Ako je timer zaustavljen ili prekonfiguriran, pin grijača može ostati
+    // zamrznut na HIGH, a sloj 2 više ne radi. allOff() odspaja PWM i spušta
+    // pinove preko PORTL, što radi i bez timera. Greška se ponovno postavlja
+    // svaki ciklus dok timer nije ispravan, pa potvrda tipkalom ne pomaže.
+    if (!timers_timer5Ok()) {
+        actuators_allOff();
+        state.fault = FaultCode::TIMER5_FAULT;
+        state.ops = OpsState::FAULT;
+        state.thermal = ThermalState::HEAT_FAULT;
+        return;
+    }
 
     // --- Provjera globalnog prekida ---
     if (state.abort_requested) {
@@ -143,6 +157,7 @@ const char* faultCodeToString(FaultCode code) {
         case FaultCode::O2_TOO_HIGH_FOR_BIG_PURGE: return "O2_HI";
         case FaultCode::ISR_SAFETY_TRIGGERED:      return "ISR";
         case FaultCode::GLOBAL_ABORT:              return "ABORT";
+        case FaultCode::TIMER5_FAULT:              return "TMR5";
         default:                                   return "UNK";
     }
 }

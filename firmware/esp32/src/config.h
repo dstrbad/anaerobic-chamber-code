@@ -20,4 +20,4 @@
 #define SERIAL_MEGA_TX   1   // Nano ESP32 TX1 -> Mega RX1 (pin 0)
 
 // Status LED
-#define PIN_STATUS_LED 2      // Built-in LED on most ESP32 devkits
+#define PIN_STATUS_LED LED_BUILTIN   // Built-in LED on Arduino Nano ESP32

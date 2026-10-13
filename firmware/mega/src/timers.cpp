@@ -44,11 +44,14 @@ void timers_init() {
     OCR4A = (62500 / TIMER4_FREQ_HZ) - 1;
     TIMSK4 |= (1 << OCIE4A);
 
-    // Timer5: 50 Hz — sigurnosni ISR (neovisan o glavnoj petlji)
-    TCCR5A = 0;
-    TCCR5B = (1 << WGM52) | (1 << CS52); // CTC, predjelitelj 256
-    OCR5A = (62500 / TIMER5_FREQ_HZ) - 1;
-    TIMSK5 |= (1 << OCIE5A);
+    // Timer5: 50 Hz — sigurnosni ISR (overflow) + PWM grijača.
+    // Fast PWM, mod 14 (TOP = ICR5). OC5C = D44 katalizator, OC5B = D45 komora.
+    // COM bitove postavlja/briše actuators.cpp; ovdje su svi isključeni.
+    TCCR5A = (1 << WGM51);
+    TCCR5B = (1 << WGM53) | (1 << WGM52) | (1 << CS52); // predjelitelj 256
+    ICR5   = TIMER5_TOP;
+    TCNT5  = 0;
+    TIMSK5 = (1 << TOIE5);
 
     sei(); // Ponovno omogući prekide
 }
@@ -69,18 +72,52 @@ ISR(TIMER4_COMPA_vect) {
     flag_update_display = true;
 }
 
-// Timer5: Sigurnosni ISR — provodi tvrde limite neovisno o glavnoj petlji
-ISR(TIMER5_COMPA_vect) {
-    uint32_t now = millis();
+// Gašenje grijača: dok je COM bit postavljen, PWM jedinica upravlja pinom i
+// PORTL nema efekta, zato prvo odspoji PWM pa tek onda spusti pin.
+#define KILL_HEATER_CAT() do { TCCR5A &= ~(1 << COM5C1); PORTL &= ~(1 << PL5); } while (0) // D44
+#define KILL_HEATER_CHM() do { TCCR5A &= ~(1 << COM5B1); PORTL &= ~(1 << PL4); } while (0) // D45
 
-    // Tvrdi temperaturni limiti (direktna manipulacija portova, sigurno u ISR-u)
+// Otkucaj sigurnosnog ISR-a — loop() provjerava da se mijenja
+static volatile uint8_t timer5_isr_count = 0;
+
+static constexpr uint8_t  TIMER5_TCCR5B_EXPECTED = (1 << WGM53) | (1 << WGM52) | (1 << CS52);
+static constexpr uint8_t  TIMER5_WGM_A_MASK      = (1 << WGM51) | (1 << WGM50);
+static constexpr uint32_t TIMER5_STALL_MS        = 100;  // 5 propuštenih otkucaja na 50 Hz
+
+bool timers_timer5Ok() {
+    // Konfiguracija: mod 14, predjelitelj 256, TOP, overflow prekid
+    if (TCCR5B != TIMER5_TCCR5B_EXPECTED) return false;
+    if ((TCCR5A & TIMER5_WGM_A_MASK) != (1 << WGM51)) return false;
+    if (ICR5 != TIMER5_TOP) return false;
+    if (!(TIMSK5 & (1 << TOIE5))) return false;
+
+    // Otkucaj: ISR mora povećati brojač barem jednom u TIMER5_STALL_MS
+    static uint8_t  last_count     = 0;
+    static uint32_t last_change_ms = 0;
+    static bool     started        = false;
+
+    uint32_t now   = millis();
+    uint8_t  count = timer5_isr_count;
+    if (!started || count != last_count) {
+        started        = true;
+        last_count     = count;
+        last_change_ms = now;
+        return true;
+    }
+    return (now - last_change_ms) <= TIMER5_STALL_MS;
+}
+
+// Timer5: Sigurnosni ISR — provodi tvrde limite neovisno o glavnoj petlji
+ISR(TIMER5_OVF_vect) {
+    uint32_t now = millis();
+    timer5_isr_count++;
+
+    // Tvrdi temperaturni limiti (direktna manipulacija registara, sigurno u ISR-u)
     if (cached_t_catalyst > HEATER_CAT_MAX_C) {
-        // D44 = PL5
-        PORTL &= ~(1 << PL5);
+        KILL_HEATER_CAT();
     }
     if (cached_t_chamber_heater > HEATER_CHM_MAX_C) {
-        // D45 = PL4
-        PORTL &= ~(1 << PL4);
+        KILL_HEATER_CHM();
     }
 
     // Tvrdi limit pretlaka — ugasi solenoid (D23 = PA1)
@@ -106,8 +143,8 @@ ISR(TIMER5_COMPA_vect) {
             (now - thermal_fsm_last_tick) > FSM_LIVENESS_TIMEOUT_MS) {
             PORTA &= ~(1 << PA0); // pumpa UGAŠENA
             PORTA &= ~(1 << PA1); // solenoid UGAŠEN
-            PORTL &= ~(1 << PL5); // grijač katalizatora UGAŠEN
-            PORTL &= ~(1 << PL4); // grijač komore UGAŠEN
+            KILL_HEATER_CAT();    // grijač katalizatora UGAŠEN
+            KILL_HEATER_CHM();    // grijač komore UGAŠEN
             isr_fault_flag = true;
         }
     }

@@ -15,6 +15,20 @@ static void publishField(const char* subtopic, const char* value, bool retain = 
     mqtt.publish(topic, value, retain);
 }
 
+// Mega šalje senzorske vrijednosti kao JSON brojeve (serialized()), ne
+// stringove, pa is<const char*>() nikad nije true za njih.
+static void publishNumber(const char* subtopic, JsonVariantConst v) {
+    if (v.isNull()) return;
+
+    char buf[32];
+    if (v.is<float>() || v.is<double>()) {
+        snprintf(buf, sizeof(buf), "%.2f", v.as<float>());
+    } else {
+        snprintf(buf, sizeof(buf), "%ld", v.as<long>());
+    }
+    publishField(subtopic, buf);
+}
+
 static void publishAll(const char* json) {
     // Publish bulk topic
     char topic[64];
@@ -28,16 +42,16 @@ static void publishAll(const char* json) {
 
     char buf[32];
 
-    if (doc["o2"].is<const char*>())  publishField("sensor/o2", doc["o2"]);
-    if (doc["h2"].is<const char*>())  publishField("sensor/h2", doc["h2"]);
-    if (doc["h2s"].is<const char*>()) publishField("sensor/h2s", doc["h2s"]);
-    if (doc["o3"].is<const char*>())  publishField("sensor/o3", doc["o3"]);
-    if (doc["co2"].is<const char*>()) publishField("sensor/co2", doc["co2"]);
-    if (doc["pb"].is<const char*>())  publishField("sensor/pressure_big", doc["pb"]);
-    if (doc["ps"].is<const char*>())  publishField("sensor/pressure_small", doc["ps"]);
-    if (doc["tc"].is<const char*>())  publishField("sensor/temp_catalyst", doc["tc"]);
-    if (doc["th"].is<const char*>())  publishField("sensor/temp_heater", doc["th"]);
-    if (doc["ta"].is<const char*>())  publishField("sensor/temp_chamber", doc["ta"]);
+    publishNumber("sensor/o2", doc["o2"]);
+    publishNumber("sensor/h2", doc["h2"]);
+    publishNumber("sensor/h2s", doc["h2s"]);
+    publishNumber("sensor/o3", doc["o3"]);
+    publishNumber("sensor/co2", doc["co2"]);
+    publishNumber("sensor/pressure_big", doc["pb"]);
+    publishNumber("sensor/pressure_small", doc["ps"]);
+    publishNumber("sensor/temp_catalyst", doc["tc"]);
+    publishNumber("sensor/temp_heater", doc["th"]);
+    publishNumber("sensor/temp_chamber", doc["ta"]);
 
     if (doc["sp_cat"].is<const char*>()) publishField("setpoint/catalyst", doc["sp_cat"]);
     if (doc["sp_chm"].is<const char*>()) publishField("setpoint/chamber",  doc["sp_chm"]);
@@ -99,8 +113,9 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
     memcpy(buf, payload, length);
     buf[length] = '\0';
 
-    Serial2.print(buf);
-    Serial2.print('\n');
+    // Isti UART koji serial_task otvara prema Megi (RX=0/TX=1)
+    Serial1.print(buf);
+    Serial1.print('\n');
 }
 
 void mqttTask(void* pvParameters) {
