@@ -1,7 +1,9 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <esp_task_wdt.h>
 #include "wifi_manager.h"
 #include "config.h"
+#include "log.h"
 
 static const char* wifiStatusStr(wl_status_t s) {
     switch (s) {
@@ -18,6 +20,8 @@ static const char* wifiStatusStr(wl_status_t s) {
 }
 
 void wifiTask(void* pvParameters) {
+    esp_task_wdt_add(nullptr);
+
     pinMode(PIN_STATUS_LED, OUTPUT);
     digitalWrite(PIN_STATUS_LED, LOW);
 
@@ -26,10 +30,11 @@ void wifiTask(void* pvParameters) {
     WiFi.begin(WIFI_SSID, WIFI_PASS);
 
     for (;;) {
+        esp_task_wdt_reset();
+
         if (WiFi.status() != WL_CONNECTED) {
             digitalWrite(PIN_STATUS_LED, LOW);
-            Serial.print("WiFi: not connected, status=");
-            Serial.println(wifiStatusStr(WiFi.status()));
+            logf("WiFi: not connected, status=%s\n", wifiStatusStr(WiFi.status()));
 
             // Potpuni reset radija prije ponovnog spajanja
             WiFi.disconnect(true, true);
@@ -40,19 +45,16 @@ void wifiTask(void* pvParameters) {
 
             uint32_t start = millis();
             while (WiFi.status() != WL_CONNECTED && (millis() - start) < 20000) {
+                esp_task_wdt_reset();
                 vTaskDelay(pdMS_TO_TICKS(500));
             }
 
             if (WiFi.status() == WL_CONNECTED) {
-                Serial.print("WiFi: connected, IP=");
-                Serial.print(WiFi.localIP());
-                Serial.print(", RSSI=");
-                Serial.print(WiFi.RSSI());
-                Serial.println(" dBm");
+                logf("WiFi: connected, IP=%s, RSSI=%d dBm\n",
+                     WiFi.localIP().toString().c_str(), WiFi.RSSI());
                 digitalWrite(PIN_STATUS_LED, HIGH);
             } else {
-                Serial.print("WiFi: connect timed out, status=");
-                Serial.println(wifiStatusStr(WiFi.status()));
+                logf("WiFi: connect timed out, status=%s\n", wifiStatusStr(WiFi.status()));
             }
         } else {
             digitalWrite(PIN_STATUS_LED, HIGH);

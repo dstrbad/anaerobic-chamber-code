@@ -15,6 +15,7 @@ enum class FaultCode : uint8_t {
     ISR_SAFETY_TRIGGERED,       // ISR sigurnosni isklop
     GLOBAL_ABORT,               // Globalni prekid
     TIMER5_FAULT,               // Timer5 (sigurnosni ISR + PWM grijača) pokvaren/zaustavljen
+    PRESSURE_SENSOR_LOST,       // Nema ispravnog očitanja tlaka dok rade pumpa/solenoid
 };
 
 // Stanja operacijskog FSM-a

@@ -1,10 +1,13 @@
 #include <Arduino.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
+#include <esp_system.h>
+#include <esp_task_wdt.h>
 #include <ArduinoJson.h>
 #include "mqtt_task.h"
 #include "serial_task.h"
 #include "config.h"
+#include "log.h"
 
 static WiFiClient wifiClient;
 static PubSubClient mqtt(wifiClient);
@@ -29,16 +32,17 @@ static void publishNumber(const char* subtopic, JsonVariantConst v) {
     publishField(subtopic, buf);
 }
 
-static void publishAll(const char* json) {
+// Vraća je li bulk objava uspjela (collector i dashboard čitaju samo bulk)
+static bool publishAll(const char* json) {
     // Publish bulk topic
     char topic[64];
     snprintf(topic, sizeof(topic), "%sbulk", MQTT_PREFIX);
-    mqtt.publish(topic, json, true);
+    bool ok = mqtt.publish(topic, json, true);
 
     // Parse and publish individual topics
     JsonDocument doc;
     DeserializationError err = deserializeJson(doc, json);
-    if (err) return;
+    if (err) return ok;
 
     char buf[32];
 
@@ -79,22 +83,46 @@ static void publishAll(const char* json) {
     publishField("actuator/catalyst_pwm", buf);
     snprintf(buf, sizeof(buf), "%u", doc["hpwm"].as<uint8_t>());
     publishField("actuator/chamber_pwm", buf);
+    return ok;
 }
 
-static void reconnectMqtt() {
-    while (!mqtt.connected()) {
-        Serial.print("MQTT connecting...");
-        if (mqtt.connect(MQTT_CLIENT_ID)) {
-            Serial.println("connected");
-            // Subscribe to command topics
-            char topic[64];
-            snprintf(topic, sizeof(topic), "%scommand/#", MQTT_PREFIX);
-            mqtt.subscribe(topic);
-        } else {
-            Serial.print("failed, rc=");
-            Serial.println(mqtt.state());
-            vTaskDelay(pdMS_TO_TICKS(5000));
-        }
+static const char* resetReasonStr(esp_reset_reason_t r) {
+    switch (r) {
+        case ESP_RST_POWERON:   return "POWERON";
+        case ESP_RST_EXT:       return "EXT";
+        case ESP_RST_SW:        return "SW";
+        case ESP_RST_PANIC:     return "PANIC";
+        case ESP_RST_INT_WDT:   return "INT_WDT";
+        case ESP_RST_TASK_WDT:  return "TASK_WDT";
+        case ESP_RST_WDT:       return "WDT";
+        case ESP_RST_DEEPSLEEP: return "DEEPSLEEP";
+        case ESP_RST_BROWNOUT:  return "BROWNOUT";
+        case ESP_RST_SDIO:      return "SDIO";
+        default:                return "UNKNOWN";
+    }
+}
+
+// Retained, pa se uzrok zadnjeg reseta ESP32 vidi i nakon što se dogodi
+static void publishResetReason() {
+    char buf[64];
+    snprintf(buf, sizeof(buf), "{\"reason\":\"%s\",\"up_s\":%lu}",
+             resetReasonStr(esp_reset_reason()), (unsigned long)(millis() / 1000));
+    publishField("status/esp_reset", buf);
+}
+
+// Jedan pokušaj spajanja (bez petlje), da mqttTask može i dalje hraniti
+// watchdog i odlučiti o restartu.
+static void tryConnectMqtt() {
+    logf("MQTT connecting...\n");
+    if (mqtt.connect(MQTT_CLIENT_ID)) {
+        logf("MQTT connected\n");
+        // Subscribe to command topics
+        char topic[64];
+        snprintf(topic, sizeof(topic), "%scommand/#", MQTT_PREFIX);
+        mqtt.subscribe(topic);
+        publishResetReason();
+    } else {
+        logf("MQTT failed, rc=%d\n", mqtt.state());
     }
 }
 
@@ -122,21 +150,51 @@ void mqttTask(void* pvParameters) {
     mqtt.setServer(MQTT_BROKER, MQTT_PORT);
     mqtt.setCallback(mqttCallback);
     mqtt.setBufferSize(1024);
+    esp_task_wdt_add(nullptr);
+
+    uint32_t last_attempt_ms = 0;
+    uint32_t last_healthy_ms = millis();
+    bool     first_attempt   = true;
 
     for (;;) {
-        if (!mqtt.connected()) {
-            reconnectMqtt();
-        }
-        mqtt.loop();
+        esp_task_wdt_reset();
 
-        // Wait for new data from serial task
-        if (xSemaphoreTake(newDataSemaphore, pdMS_TO_TICKS(5000)) == pdTRUE) {
+        if (mqtt.connected()) {
+            mqtt.loop();
+        } else if (WiFi.status() == WL_CONNECTED &&
+                   (first_attempt || millis() - last_attempt_ms >= MQTT_RETRY_MS)) {
+            first_attempt   = false;
+            last_attempt_ms = millis();
+            tryConnectMqtt();
+            esp_task_wdt_reset();
+        }
+
+        // Zdravo = spojeni na broker i zadnja bulk objava (ako je bilo
+        // podataka) je uspjela. Kratko čekanje da mqtt.loop() ide često.
+        bool healthy = mqtt.connected();
+        if (xSemaphoreTake(newDataSemaphore, pdMS_TO_TICKS(1000)) == pdTRUE) {
             char localBuf[512];
+            bool copied = false;
             if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
-                strncpy(localBuf, sharedJsonBuffer, sizeof(localBuf));
+                strncpy(localBuf, sharedJsonBuffer, sizeof(localBuf) - 1);
+                localBuf[sizeof(localBuf) - 1] = '\0';
                 xSemaphoreGive(dataMutex);
+                copied = true;
             }
-            publishAll(localBuf);
+            if (copied && mqtt.connected()) {
+                healthy = publishAll(localBuf);
+            }
+        }
+
+        // Ako WiFi/MQTT predugo ne radi, restart je pouzdaniji od daljnjeg
+        // pokušavanja (WiFi stog zna zapeti). Šutnja Mege NE uzrokuje restart.
+        if (healthy) {
+            last_healthy_ms = millis();
+        } else if (millis() - last_healthy_ms > MQTT_UNHEALTHY_RESTART_MS) {
+            logf("MQTT/WiFi down for %lus, restarting\n",
+                 (unsigned long)(MQTT_UNHEALTHY_RESTART_MS / 1000));
+            vTaskDelay(pdMS_TO_TICKS(100));
+            ESP.restart();
         }
     }
 }

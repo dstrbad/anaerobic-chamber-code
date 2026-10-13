@@ -73,7 +73,9 @@ const Toolbar = (function () {
         return { from: from, to: to };
     }
 
-    function applyRange() {
+    // Live/server view: fetch the range from server history (it may be older
+    // than what's loaded). SD-file view: just zoom into the loaded file.
+    async function applyRange() {
         const { from, to } = getRangeInputs();
         if (!from || !to) {
             alert(I18n.t('toolbar.range_required'));
@@ -83,6 +85,9 @@ const Toolbar = (function () {
             alert(I18n.t('toolbar.range_invalid'));
             return;
         }
+        if (!History.isActive() && !isDemo()) {
+            await ServerHistory.loadRange(from, to);
+        }
         Charts.setRange(from, to);
     }
 
@@ -90,6 +95,48 @@ const Toolbar = (function () {
         document.getElementById('range-from').value = '';
         document.getElementById('range-to').value = '';
         Charts.setRange(null, null);
+        if (!History.isActive() && !isDemo()) {
+            ServerHistory.loadDefault();
+        }
+    }
+
+    function isDemo() {
+        return window.location.search.indexOf('demo') !== -1;
+    }
+
+    // --- Server history window -------------------------------------------------
+
+    let historyStatus = 'ok';
+
+    function setHistoryStatus(state) {
+        historyStatus = state;
+        const el = document.getElementById('history-status');
+        if (!el) return;
+        el.textContent = state === 'loading' ? I18n.t('toolbar.history_loading')
+                       : state === 'error'   ? I18n.t('toolbar.history_error')
+                       : '';
+        el.classList.toggle('toolbar-status-error', state === 'error');
+    }
+
+    function buildHistorySelect() {
+        const select = document.getElementById('history-days');
+        select.innerHTML = '';
+        ServerHistory.DAY_OPTIONS.forEach(n => {
+            const opt = document.createElement('option');
+            opt.value = String(n);
+            opt.textContent = n + ' d';
+            select.appendChild(opt);
+        });
+        select.value = String(ServerHistory.getDays());
+        select.addEventListener('change', () => {
+            ServerHistory.setDays(parseInt(select.value, 10));
+            document.getElementById('range-from').value = '';
+            document.getElementById('range-to').value = '';
+            Charts.setRange(null, null);
+            if (!History.isActive() && !isDemo()) {
+                ServerHistory.loadDefault();
+            }
+        });
     }
 
     // Format Date as "YYYY-MM-DDTHH:mm:ss" in local time (no Z suffix) — keeps
@@ -162,18 +209,20 @@ const Toolbar = (function () {
         loadVisibility();
         buildPills();
         applyVisibility();
+        buildHistorySelect();
 
         document.getElementById('range-apply').addEventListener('click', applyRange);
         document.getElementById('range-reset').addEventListener('click', resetRange);
         document.getElementById('export-csv').addEventListener('click', exportCSV);
 
-        // Pill labels follow the language toggle.
+        // Pill labels and history status follow the language toggle.
         window.addEventListener('i18n:change', () => {
             document.querySelectorAll('#metric-toggles [data-i18n]').forEach(el => {
                 el.textContent = I18n.t(el.dataset.i18n);
             });
+            setHistoryStatus(historyStatus);
         });
     }
 
-    return { init: init };
+    return { init: init, setHistoryStatus: setHistoryStatus };
 })();

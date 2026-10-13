@@ -64,6 +64,7 @@ constexpr const uint8_t* ROM_T_CHAMBER        = DS18B20_ROM_0; // TODO: potvrdi
 constexpr uint8_t TIMER1_FREQ_HZ     = 10;    // Očitanje tlaka
 constexpr uint8_t TIMER3_FREQ_HZ     = 1;     // Plinovi + temperatura + serijski TX
 constexpr uint8_t TIMER4_FREQ_HZ     = 20;    // Osvježavanje ekrana + unos
+constexpr uint8_t DISPLAY_RENDER_DIV = 4;     // Crtanje svaki 4. Timer4 tick = 5 Hz (odmah nakon unosa)
 constexpr uint8_t TIMER5_FREQ_HZ     = 50;    // Sigurnosni ISR + PWM grijača (D44/D45)
 constexpr uint16_t TIMER5_TOP        = (62500 / TIMER5_FREQ_HZ) - 1; // ICR5, predjelitelj 256
 
@@ -74,6 +75,9 @@ constexpr float    GAS_SAMPLE_HZ     = 1.0f;
 constexpr float    PRESSURE_SAMPLE_HZ = 10.0f;
 constexpr float    O2_ZERO_OFFSET_PCT = 0.6f;  // measured raw value in anaerobic state
 constexpr float    O2_LOW_CUTOFF_PCT  = 0.05f; // values below this shown as 0
+constexpr uint32_t I2C_TIMEOUT_US     = 25000;   // Wire timeout; bez njega zapela sabirnica blokira zauvijek
+constexpr float    P_PLAUSIBLE_MIN_HPA = 300.0f; // Sirovo očitanje BMP280 izvan raspona = neispravno
+constexpr float    P_PLAUSIBLE_MAX_HPA = 1200.0f;
 
 // --- Parametri pročišćavanja (mala komora) -----------------------------------
 
@@ -104,6 +108,7 @@ constexpr float    HEATER_CHM_MAX_C         = 45.0f;    // Sigurnosni isklop
 constexpr uint16_t EEPROM_ADDR_MAGIC        = 0;
 constexpr uint16_t EEPROM_ADDR_CHM_SP       = 1;        // uint8_t, °C, cijeli broj
 constexpr uint16_t EEPROM_ADDR_CAT_SP       = 2;        // uint8_t, °C, cijeli broj
+constexpr uint16_t EEPROM_ADDR_BOOT_COUNT   = 3;        // uint16_t (3..4), broj pokretanja
 constexpr uint8_t  EEPROM_MAGIC_VALUE       = 0xA5;
 
 // --- Sigurnosni pragovi ------------------------------------------------------
@@ -114,6 +119,7 @@ constexpr uint32_t WATCHDOG_WINDOW_MS       = 1500;     // Vrijeme za detekciju 
 constexpr float    OVERPRESSURE_ALARM_HPA   = 25.0f;    // Relativno na referentni tlak
 constexpr float    OVERPRESSURE_CUTOFF_HPA  = 25.0f;   // Tvrd isklop, solenoid ugašen
 constexpr uint32_t TEMP_INVALID_TIMEOUT_MS  = 5000;     // DS18B20 timeout -> grijač ugašen
+constexpr uint32_t PRESSURE_INVALID_TIMEOUT_MS = 500;   // Nema ispravnog tlaka dok pumpa/solenoid rade -> isklop
 constexpr uint32_t MAX_ACTUATOR_ON_MS       = 90000;    // ISR tvrd timeout za aktuatore
 constexpr uint32_t FSM_LIVENESS_TIMEOUT_MS  = 750;     // ISR gasi aktuatore ako FSM stane
 constexpr uint16_t WDT_TIMEOUT              = WDTO_2S;
@@ -142,6 +148,10 @@ constexpr uint8_t  LOG_FILE_RETENTION       = 32;       // Maksimalan broj saču
 constexpr uint32_t SERIAL_BAUD_USB          = 115200;
 constexpr uint32_t SERIAL_BAUD_ESP32        = 115200;
 
+// 1 = svaki telemetrijski okvir i na USB (debug). Isključeno jer ispis
+// ~350 bajtova blokira loop() ~30 ms svake sekunde.
+#define SERIAL_DEBUG_TX 0
+
 // --- Offset za tlak ---------------------------------------------------
-constexpr float P_BIG_OFFSET_HPA   = -55.5f;
-constexpr float P_SMALL_OFFSET_HPA =  11.5f;
+constexpr float P_BIG_OFFSET_HPA   = 0.0f;   // TODO: izmjeriti na komori (stari -55.5 bio je za dijeljenu kalibraciju)
+constexpr float P_SMALL_OFFSET_HPA = 0.0f;   // TODO: izmjeriti na komori (stari +11.5)

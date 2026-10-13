@@ -53,6 +53,14 @@ void timers_init() {
     TCNT5  = 0;
     TIMSK5 = (1 << TOIE5);
 
+    // Arduino jezgra pri pokretanju vrti ove timere u PWM modu, pa su njihove
+    // zastavice prekida već postavljene. Bez brisanja bi svi ISR-ovi okinuli
+    // odmah nakon sei(). Upis 1 briše zastavicu.
+    TIFR1 = 0xFF;
+    TIFR3 = 0xFF;
+    TIFR4 = 0xFF;
+    TIFR5 = 0xFF;
+
     sei(); // Ponovno omogući prekide
 }
 

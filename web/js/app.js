@@ -98,6 +98,8 @@
         hideHistoryBanner();
         lastLiveData = null;
         refreshStatusLabel(MqttHandler.isConnected());
+        // Back to live: refill the charts from server history
+        if (!isDemo) ServerHistory.loadDefault();
     }
 
     importBtn.addEventListener('click', () => csvInput.click());
@@ -145,5 +147,7 @@
     } else {
         refreshStatusLabel(false);
         MqttHandler.connect(MQTT_BROKER_WS, MQTT_TOPIC);
+        // Fill the charts with the last N days recorded by the collector
+        ServerHistory.start(Toolbar.setHistoryStatus);
     }
 })();

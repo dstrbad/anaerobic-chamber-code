@@ -1,14 +1,16 @@
 /**
- * Authoritative time-series buffer for the dashboard. Both the live MQTT
- * stream and CSV history loads write here; the toolbar's CSV export reads
- * from here so the file always matches what the user sees on the charts.
+ * Authoritative time-series buffer for the dashboard. Server history, the
+ * live MQTT stream and CSV imports write here; the toolbar's CSV export reads
+ * from here so the file always matches what the user sees on the charts
+ * (server history rows are bucket means, not raw 1 Hz samples).
  *
- * Capped at MAX_POINTS rows (FIFO). Each row carries a `_time` Date plus
- * the raw fields exactly as they arrive on MQTT / appear in the CSV.
+ * Capped at MAX_POINTS rows (FIFO). Normally it holds ~3000 history rows
+ * plus <10 min of live rows, because ServerHistory replaces it on refresh.
+ * Each row carries a `_time` Date plus the fields as they arrive.
  */
 
 const DataBuffer = (function () {
-    const MAX_POINTS = 7200; // 2 hours at 1 Hz, ~1.5 MB at ~200 B/row
+    const MAX_POINTS = 50000; // matches Charts.maxPoints
     let buffer = [];
 
     function append(row) {

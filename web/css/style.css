@@ -118,6 +118,15 @@ header h1 {
     color: #555;
 }
 
+.toolbar-status {
+    color: #aaa;
+    font-size: 11px;
+}
+
+.toolbar-status-error {
+    color: #e74c3c;
+}
+
 .toolbar-input {
     background: #0f3460;
     color: #e0e0e0;

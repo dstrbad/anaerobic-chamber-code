@@ -5,6 +5,10 @@
 #include <SPI.h>
 #include <SD.h>
 
+// Definirano u main.cpp
+extern uint8_t  reset_flags;
+extern uint16_t boot_count;
+
 // Logiranje na SD karticu — kružna povijest po datotekama.
 //
 // Imenovanje: LOGNNNN.CSV (8.3, sekvencijalni indeks). Pri svakom paljenju
@@ -50,11 +54,18 @@ uint16_t scan_highest_index() {
     return highest;
 }
 
+// Briše datoteke koje su upravo ispale iz prozora od LOG_FILE_RETENTION.
+// Prije je petlja išla od indeksa 1 svaki put — sa stotinama indeksa to su
+// sekunde SD pristupa u loop()-u (FSM liveness + WDT). Indeks raste za 1 po
+// rotaciji/pokretanju, pa je dovoljno pogledati malo unatrag.
+constexpr uint16_t PRUNE_LOOKBACK = 8;
+
 void prune_old_files() {
     if (current_index <= LOG_FILE_RETENTION) return;
     uint16_t cutoff = current_index - LOG_FILE_RETENTION;
+    uint16_t first  = (cutoff > PRUNE_LOOKBACK) ? cutoff - PRUNE_LOOKBACK + 1 : 1;
     char name[16];
-    for (uint16_t i = 1; i <= cutoff; ++i) {
+    for (uint16_t i = first; i <= cutoff; ++i) {
         format_filename(name, sizeof(name), i);
         if (SD.exists(name)) SD.remove(name);
     }
@@ -62,7 +73,7 @@ void prune_old_files() {
 
 void write_header(File& f) {
     f.print(F("ms,o2,h2,h2s,o3,co2,pb,ps,tc,th,ta,sp_cat,sp_chm,"
-              "st,ts,f,pump,sol,cpwm,hpwm,wu,up,pc,pt\n"));
+              "st,ts,f,pump,sol,cpwm,hpwm,wu,up,pc,pt,rst,boots,i2c\n"));
 }
 
 bool start_new_file() {
@@ -108,7 +119,10 @@ void write_row(const SensorData& s, const SystemState& st) {
     current_log_file.print(s.warmup_remaining_s); current_log_file.print(',');
     current_log_file.print(st.uptime_s);        current_log_file.print(',');
     current_log_file.print(st.purge_cycle);     current_log_file.print(',');
-    current_log_file.print(st.purge_total);     current_log_file.print('\n');
+    current_log_file.print(st.purge_total);     current_log_file.print(',');
+    current_log_file.print(reset_flags);        current_log_file.print(',');
+    current_log_file.print(boot_count);         current_log_file.print(',');
+    current_log_file.print(i2c_error_count);    current_log_file.print('\n');
 
     current_size = (uint32_t)current_log_file.size();
 

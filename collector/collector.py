@@ -3,7 +3,7 @@
 Anaerobic Chamber — MQTT-to-CSV Data Collector
 
 Subscribes to the bulk MQTT topic and writes:
-  1. Continuous logs (weekly CSV files in data/continuous/)
+  1. Continuous logs (weekly CSV files in data/continuous/ + SQLite history DB)
   2. Per-run logs (triggered by purge state transitions in data/runs/)
 
 Run: python3 collector.py
@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 import paho.mqtt.client as mqtt
 
 import config
+import storage
 import templates_server
 
 # Purge states that trigger per-run logging
@@ -52,8 +53,10 @@ class ContinuousWriter:
                 self._writer.writeheader()
             self._current_week_start = week_start
 
-    def append(self, row: dict):
-        now = datetime.now()
+            # New week (or startup): keep CSVs + history DB under the limit
+            storage.enforce_limit(self.output_dir, int(config.DATA_LIMIT_GB * 1e9))
+
+    def append(self, row: dict, now: datetime):
         self._ensure_file(now)
         self._writer.writerow(row)
         self._file.flush()
@@ -115,9 +118,9 @@ class DataCollector:
         else:
             print(f"MQTT connection failed with code {rc}")
 
-    def _flatten(self, data: dict) -> dict:
+    def _flatten(self, data: dict, now: datetime) -> dict:
         """Convert JSON message to CSV row."""
-        row = {"timestamp": datetime.now().isoformat()}
+        row = {"timestamp": now.isoformat()}
         for json_key, csv_col in config.JSON_TO_CSV.items():
             row[csv_col] = data.get(json_key, "")
         return row
@@ -128,10 +131,17 @@ class DataCollector:
         except json.JSONDecodeError:
             return
 
-        row = self._flatten(data)
+        if not isinstance(data, dict):
+            return
+        now = datetime.now()
+        row = self._flatten(data, now)
 
-        # Always log to continuous file
-        self.continuous.append(row)
+        # Always log to continuous file + history DB (same timestamp)
+        self.continuous.append(row, now)
+        try:
+            storage.insert(data, int(now.timestamp() * 1000))
+        except Exception as e:  # never let the DB stop CSV logging
+            print(f"History DB insert failed: {e}")
 
         # Track run boundaries
         state = data.get("st", "IDLE")
@@ -155,6 +165,9 @@ class DataCollector:
 
 
 if __name__ == "__main__":
+    storage.init()
+    # Backfill the history DB from CSVs written before it existed (once)
+    storage.start_import(config.CONTINUOUS_DIR, int(datetime.now().timestamp() * 1000))
     templates_server.start()
     collector = DataCollector()
     collector.run()

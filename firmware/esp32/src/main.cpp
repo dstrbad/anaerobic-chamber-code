@@ -1,12 +1,18 @@
 #include <Arduino.h>
+#include <esp_task_wdt.h>
 #include "config.h"
+#include "log.h"
 #include "serial_task.h"
 #include "mqtt_task.h"
 #include "wifi_manager.h"
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("Anaerobic Chamber — ESP32 MQTT Bridge");
+    logf("Anaerobic Chamber — ESP32 MQTT Bridge\n");
+
+    // Task watchdog: svaki task se prijavljuje (esp_task_wdt_add) i mora ga
+    // hraniti; ako jedan stane dulje od TASK_WDT_TIMEOUT_S, ploča se resetira.
+    esp_task_wdt_init(TASK_WDT_TIMEOUT_S, true);
 
     // Create synchronization primitives
     dataMutex = xSemaphoreCreateMutex();

@@ -199,7 +199,7 @@ firmware/
 helpers/
   hardware_discovery.cpp    Bring-up sketch (env: discovery)
   relay_test.cpp            Minimal relay pulse test
-collector/                  Python MQTT-to-CSV collector + templates HTTP API
+collector/                  Python MQTT-to-CSV/SQLite collector + templates/history HTTP API
 web/                        Dashboard: index.html, css/, js/ (no build step)
 ```
 
@@ -222,9 +222,10 @@ All topics sit under the configurable prefix, default `anaerobic/chamber1/`.
 | `sensor/temp_catalyst`, `sensor/temp_heater`, `sensor/temp_chamber` | float | yes | °C |
 | `status/state` | string | yes | `INIT`, `IDLE`, `PURGE_S`, `PURGE_B`, `FAULT` |
 | `status/thermal` | string | yes | `OFF`, `CAT`, `CHM`, `BOTH`, `FAULT` |
-| `status/fault` | string | yes | `NONE`, `NO_DP`, `OVERP`, `OT_CAT`, `OT_CHM`, `TS_CAT`, `TS_CHM`, `O2_HI`, `ISR`, `ABORT`, `TMR5` |
+| `status/fault` | string | yes | `NONE`, `NO_DP`, `OVERP`, `OT_CAT`, `OT_CHM`, `TS_CAT`, `TS_CHM`, `O2_HI`, `ISR`, `ABORT`, `TMR5`, `PS_LOST` |
 | `status/purge_progress` | JSON | yes | `{"current": 3, "total": 7}` |
 | `status/uptime`, `status/warmup` | int | yes | Seconds |
+| `status/esp_reset` | JSON | yes | ESP32 reset cause on each MQTT connect, `{"reason": "TASK_WDT", "up_s": 12}` |
 | `actuator/pump`, `actuator/solenoid` | int | yes | 0 or 1 |
 | `actuator/catalyst_pwm`, `actuator/chamber_pwm` | int | yes | 0 to 255 |
 | `command/purge` | string | no | `small` or `big` |
@@ -237,6 +238,10 @@ All topics sit under the configurable prefix, default `anaerobic/chamber1/`.
 SD card on the Mega: files are named `LOG0000.CSV`, `LOG0001.CSV` and so on, and a new file starts when the current one passes 64 KB. Active mode (default on) writes a row every 10 s for four hours; passive mode writes one row per hour. An SD failure shows a warning on the display and does not stop the system.
 
 Collector: every frame appended to a weekly CSV (Monday to Sunday), plus a separate full-resolution file per purge run opened on the transition into a purge state and closed when the state returns to IDLE or FAULT.
+
+History database: every frame is also inserted into `collector/data/history.sqlite3` with an epoch-millisecond timestamp. When the dashboard opens it calls `GET :8000/history?days=N` and starts with the last N days already drawn (toolbar "History" selector, 1 day by default, up to 30). The server downsamples any window to about 3000 points: a mean per bucket, plus min/max bands for O2, both pressures and the three temperatures so short spikes stay visible. The Range Apply button fetches any older window the same way. Full 1 Hz data stays in the CSVs. On first start the collector imports the existing weekly CSVs into the database once.
+
+Retention: when a new week starts and the weekly CSVs plus the database exceed `DATA_LIMIT_GB` (default 32), the oldest week is deleted, both the CSV and its database rows. At about 26 MB per day that is roughly three years of data. Per-run CSVs are never deleted.
 
 CSV header (shared by SD and collector):
 

@@ -59,6 +59,22 @@ void safety_check(const SensorData& sensors, SystemState& state) {
         return;
     }
 
+    // --- Gubitak očitanja tlaka ---
+    // Neuspjelo čitanje zadržava zadnju vrijednost, pa bi provjera pretlaka
+    // gledala zastarjeli broj. Dok pumpa ili solenoid rade, oba senzora moraju
+    // davati ispravna očitanja.
+    if (actuators_isPumpOn() || actuators_isSolenoidOn()) {
+        uint32_t now = millis();
+        if ((now - sensors.p_big_ok_ms)   > PRESSURE_INVALID_TIMEOUT_MS ||
+            (now - sensors.p_small_ok_ms) > PRESSURE_INVALID_TIMEOUT_MS) {
+            actuators_pumpOff();
+            actuators_solenoidOff();
+            state.fault = FaultCode::PRESSURE_SENSOR_LOST;
+            state.ops = OpsState::FAULT;
+            return;
+        }
+    }
+
     // --- Watchdog za odziv tlaka ---
     if (actuators_isPumpOn() || actuators_isSolenoidOn()) {
         if (!watchdog_active) {
@@ -158,6 +174,7 @@ const char* faultCodeToString(FaultCode code) {
         case FaultCode::ISR_SAFETY_TRIGGERED:      return "ISR";
         case FaultCode::GLOBAL_ABORT:              return "ABORT";
         case FaultCode::TIMER5_FAULT:              return "TMR5";
+        case FaultCode::PRESSURE_SENSOR_LOST:      return "PS_LOST";
         default:                                   return "UNK";
     }
 }

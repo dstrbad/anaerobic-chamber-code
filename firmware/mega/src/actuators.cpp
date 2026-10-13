@@ -6,6 +6,12 @@
 volatile uint32_t pump_on_since     = 0;
 volatile uint32_t solenoid_on_since = 0;
 
+// Timer5 ISR čita ove 32-bitne vrijednosti; upis mora biti atomaran, inače
+// ISR može pročitati pola stare i pola nove vrijednosti (lažni timeout).
+static void setOnSince(volatile uint32_t& v, uint32_t value) {
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { v = value; }
+}
+
 static bool pump_active     = false;
 static bool solenoid_active = false;
 
@@ -21,15 +27,15 @@ void actuators_init() {
     digitalWrite(PIN_HEATER_CAT, LOW);   // gasi i Arduino PWM s Timer5
     digitalWrite(PIN_HEATER_CHM, LOW);
 
-    pump_on_since = 0;
-    solenoid_on_since = 0;
+    setOnSince(pump_on_since, 0);
+    setOnSince(solenoid_on_since, 0);
 }
 
 // --- Pumpa ---
 
 void actuators_pumpOn() {
     if (!pump_active) {
-        pump_on_since = millis();
+        setOnSince(pump_on_since, millis());
         pump_active = true;
     }
     digitalWrite(PIN_PUMP, HIGH);
@@ -37,13 +43,13 @@ void actuators_pumpOn() {
 
 void actuators_pumpOff() {
     digitalWrite(PIN_PUMP, LOW);
-    pump_on_since = 0;
+    setOnSince(pump_on_since, 0);
     pump_active = false;
 }
 
 void actuators_refreshPumpTimeout() {
     if (pump_active) {
-        pump_on_since = millis();
+        setOnSince(pump_on_since, millis());
     }
 }
 
@@ -51,7 +57,7 @@ void actuators_refreshPumpTimeout() {
 
 void actuators_solenoidOn() {
     if (!solenoid_active) {
-        solenoid_on_since = millis();
+        setOnSince(solenoid_on_since, millis());
         solenoid_active = true;
     }
     digitalWrite(PIN_SOLENOID, HIGH);
@@ -59,13 +65,13 @@ void actuators_solenoidOn() {
 
 void actuators_solenoidOff() {
     digitalWrite(PIN_SOLENOID, LOW);
-    solenoid_on_since = 0;
+    setOnSince(solenoid_on_since, 0);
     solenoid_active = false;
 }
 
 void actuators_refreshSolenoidTimeout() {
     if (solenoid_active) {
-        solenoid_on_since = millis();
+        setOnSince(solenoid_on_since, millis());
     }
 }
 

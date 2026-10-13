@@ -89,6 +89,11 @@
             <div id="metric-toggles" class="metric-toggles"></div>
         </div>
         <div class="toolbar-group">
+            <span class="toolbar-label" data-i18n="toolbar.history">Povijest</span>
+            <select id="history-days" class="toolbar-input"></select>
+            <span id="history-status" class="toolbar-status"></span>
+        </div>
+        <div class="toolbar-group">
             <span class="toolbar-label" data-i18n="toolbar.range">Raspon</span>
             <input type="datetime-local" id="range-from" class="toolbar-input" step="1">
             <span class="toolbar-sep">–</span>
@@ -148,6 +153,7 @@
     <script src="js/mock-data.js"></script>
     <script src="js/history.js"></script>
     <script src="js/charts.js"></script>
+    <script src="js/server-history.js"></script>
     <script src="js/toolbar.js"></script>
     <script src="js/settings.js"></script>
     <script src="js/app.js"></script>

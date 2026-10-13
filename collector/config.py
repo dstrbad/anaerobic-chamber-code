@@ -16,6 +16,13 @@ DATA_DIR = os.environ.get("DATA_DIR", "data")
 CONTINUOUS_DIR = f"{DATA_DIR}/continuous"
 RUNS_DIR = f"{DATA_DIR}/runs"
 
+# SQLite store behind the dashboard's GET /history (see storage.py)
+HISTORY_DB = os.environ.get("HISTORY_DB", f"{DATA_DIR}/history.sqlite3")
+
+# Weekly CSVs + history DB together. When a new week starts and the total is
+# over this, the oldest week (CSV and its DB rows) is deleted.
+DATA_LIMIT_GB = float(os.environ.get("DATA_LIMIT_GB", "32"))
+
 # CSV columns — order is what readers/spreadsheets see.
 # Mirrors the SD card CSV produced by firmware/mega/src/logging.cpp.
 CSV_COLUMNS = [
