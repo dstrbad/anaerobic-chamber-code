@@ -5,6 +5,9 @@
 
 void heater_init();
 void heater_tickCatalyst(const SensorData& sensors, SystemState& state);
+
+// Katalizator: trenutna ciljna T nakon rampe (0 kad grijač katalizatora ne radi)
+float heater_getCatalystTarget();
 void heater_tickChamber(const SensorData& sensors, SystemState& state);
 
 // Kaskadna regulacija komore: trenutna ciljna T ploče grijača (0 kad grijač

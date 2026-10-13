@@ -189,7 +189,7 @@ firmware/
     sensors.*               BMP280, DS18B20, DFRobot gas sensors
     actuators.*             Pump, valve, heaters, timeout tracking
     purge.*                 Purge cycle sub-states
-    heater.*                Thermal control: catalyst on/off, chamber cascade PI
+    heater.*                Thermal control: catalyst ramp + PI, chamber cascade PI
     display.*, input.*      OLED pages, joystick and button
     logging.*               SD card CSV
     serial_comm.*, serial_rx.*  JSON to and from the ESP32

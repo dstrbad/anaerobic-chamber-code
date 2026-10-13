@@ -73,7 +73,7 @@ void prune_old_files() {
 
 void write_header(File& f) {
     f.print(F("ms,o2,h2,h2s,o3,co2,pb,ps,tc,th,ta,sp_cat,sp_chm,"
-              "st,ts,f,pump,sol,cpwm,hpwm,wu,up,pc,pt,rst,boots,i2c,th_sp,th_lim\n"));
+              "st,ts,f,pump,sol,cpwm,hpwm,wu,up,pc,pt,rst,boots,i2c,th_sp,th_lim,tc_sp\n"));
 }
 
 bool start_new_file() {
@@ -124,7 +124,8 @@ void write_row(const SensorData& s, const SystemState& st) {
     current_log_file.print(boot_count);         current_log_file.print(',');
     current_log_file.print(i2c_error_count);    current_log_file.print(',');
     current_log_file.print(heater_getChamberHeaterTarget(), 1); current_log_file.print(',');
-    current_log_file.print(heater_isChamberAtLimit() ? 1 : 0);  current_log_file.print('\n');
+    current_log_file.print(heater_isChamberAtLimit() ? 1 : 0);  current_log_file.print(',');
+    current_log_file.print(heater_getCatalystTarget(), 1);      current_log_file.print('\n');
 
     current_size = (uint32_t)current_log_file.size();
 

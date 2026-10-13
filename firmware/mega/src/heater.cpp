@@ -3,11 +3,26 @@
 #include "actuators.h"
 #include <EEPROM.h>
 
-static constexpr float CAT_HYSTERESIS = 1.0f;
+// --- Grijač katalizatora: rampa + PI na PWM ---------------------------------
+//
+// Senzor mjeri sam katalizator, pa je dovoljna jedna petlja. Prijašnji
+// ON/OFF oko SP prebacivao je ~5 °C (SP 50 -> ~55) jer senzor kasni za
+// grijačem. Zato: cilj raste rampom od trenutne T prema SP (zadnjih
+// CAT_RAMP_SLOW_BAND_C sporije), PI daje djelomičnu snagu blizu cilja, a na
+// SP + CAT_HYSTERESIS i iznad grijač je ugašen bez obzira na PI.
+// Pojačanja i brzine su početne vrijednosti — podesiti na komori.
 
-// Katalizator: čisti ON/OFF (255/0), kako je testirano na komori. Pravi PWM
-// na D44/D45 radi od prelaska Timer5 na Fast PWM (timers.cpp), pa se ovdje
-// mogu vratiti međustupnjevi snage ako zatreba.
+static constexpr float    CAT_HYSTERESIS          = 1.0f;   // tvrdo: na SP + ovo grijač ugašen
+static constexpr float    CAT_KP                  = 40.0f;  // PWM po °C greške
+static constexpr float    CAT_KI                  = 0.3f;   // PWM po °C·s
+static constexpr float    CAT_RAMP_FAST_C_PER_MIN = 2.0f;
+static constexpr float    CAT_RAMP_SLOW_C_PER_MIN = 0.5f;
+static constexpr float    CAT_RAMP_SLOW_BAND_C    = 5.0f;   // zadnjih N °C ispod SP sporije
+static constexpr uint32_t CAT_RESTART_GAP_MS      = 5000;
+
+static float    cat_target       = 0.0f;  // ciljna T nakon rampe
+static float    cat_i            = 0.0f;  // integral (PWM)
+static uint32_t cat_last_call_ms = 0;
 
 // --- Grijač komore: kaskadna regulacija --------------------------------------
 //
@@ -41,9 +56,19 @@ static constexpr uint32_t CHM_SAVE_PERIOD_MS   = 3600000; // EEPROM najviše 1x/
 static constexpr float    CHM_SAVE_NEAR_SP_C   = 1.0f;    // spremi samo kad je komora blizu SP
 static constexpr uint32_t CHM_RESTART_GAP_MS   = 5000;    // pauza dulja od ovog = novo uključenje
 
+// Rampa cilja ploče: senzor grijača kasni za stvarnom T ploče, pa skok cilja
+// (npr. odmah na 52 °C) daje prebačaj na 55-56 °C. Cilj zato raste postupno
+// od trenutne T ploče, a zadnjih CHM_RAMP_SLOW_BAND_C ispod PLATE_MAX još
+// sporije. Spuštanje cilja je trenutno.
+static constexpr float    CHM_RAMP_FAST_C_PER_MIN = 1.0f;
+static constexpr float    CHM_RAMP_SLOW_C_PER_MIN = 0.3f;
+static constexpr float    CHM_RAMP_SLOW_BAND_C    = 5.0f;
+static constexpr float    CHM_RAMP_HOLD_C         = 0.5f;  // rampa "drži" cilj -> vanjska petlja ne uči
+
 static float    chm_offset        = NAN;   // naučeni pomak ploče iznad SP (°C)
 static float    chm_offset_sp     = NAN;   // SP za koji vrijedi chm_offset
-static float    chm_target        = 0.0f;  // trenutna ciljna T ploče (°C)
+static float    chm_desired       = 0.0f;  // cilj ploče iz vanjske petlje (prije rampe)
+static float    chm_target        = 0.0f;  // trenutna ciljna T ploče nakon rampe (°C)
 static float    chm_inner_i       = 0.0f;  // integral unutarnje petlje (PWM)
 static uint32_t chm_last_call_ms  = 0;
 static uint32_t chm_last_outer_ms = 0;
@@ -106,22 +131,51 @@ void heater_reloadChamberSetpoint() {
 }
 
 void heater_tickCatalyst(const SensorData& sensors, SystemState& state) {
+    // Bez senzora: PWM ostaje, sigurnosni modul nakon TEMP_INVALID_TIMEOUT_MS
+    // gasi grijač i diže TS_CAT (kao i prije).
     if (!sensors.t_catalyst_valid) return;
 
-    float setpoint = runtime_cat_setpoint;
-    float t = sensors.t_catalyst;
+    const uint32_t now = millis();
+    const float    sp  = runtime_cat_setpoint;
+    const float    t   = sensors.t_catalyst;
 
-    uint8_t pwm = state.catalyst_pwm;
-
-    // Bang-bang s histerezom; unutar pojasa zadrži prethodno stanje
-    if (t < (setpoint - CAT_HYSTERESIS)) {
-        pwm = 255;
-    } else if (t > (setpoint + CAT_HYSTERESIS)) {
-        pwm = 0;
+    // Prvo uključenje ili nastavak nakon pauze: rampa od trenutne T
+    const bool restart = (cat_last_call_ms == 0) || (now - cat_last_call_ms > CAT_RESTART_GAP_MS);
+    const float dt = restart ? 0.0f : (now - cat_last_call_ms) / 1000.0f;
+    cat_last_call_ms = now;
+    if (restart) {
+        cat_i      = 0.0f;
+        cat_target = min(t, sp);
     }
+
+    // Rampa: cilj raste najviše zadanom brzinom, pada odmah (npr. niži SP)
+    if (sp <= cat_target) {
+        cat_target = sp;
+    } else {
+        const float rate = (cat_target >= sp - CAT_RAMP_SLOW_BAND_C)
+                           ? CAT_RAMP_SLOW_C_PER_MIN : CAT_RAMP_FAST_C_PER_MIN;
+        cat_target = min(cat_target + rate * dt / 60.0f, sp);
+    }
+
+    // PI s anti-windupom
+    const float err = cat_target - t;
+    const float p   = CAT_KP * err;
+    const float out = p + cat_i;
+    if (!((out >= 255.0f && err > 0) || (out <= 0.0f && err < 0))) {
+        cat_i = constrain(cat_i + CAT_KI * err * dt, 0.0f, 255.0f);
+    }
+    const float pwm_f = constrain(p + cat_i, 0.0f, 255.0f);
+
+    // Tvrda granica: na/iznad SP + histereza grijač ugašen
+    uint8_t pwm = (t >= sp + CAT_HYSTERESIS) ? 0 : (uint8_t)(pwm_f + 0.5f);
 
     actuators_setCatalystPWM(pwm);
     state.catalyst_pwm = pwm;
+}
+
+float heater_getCatalystTarget() {
+    if (cat_last_call_ms == 0 || millis() - cat_last_call_ms > CAT_RESTART_GAP_MS) return 0.0f;
+    return cat_target;
 }
 
 // Raspon (SP - T_lab) s donjom granicom, da omjer ostane smislen za niske SP
@@ -176,9 +230,12 @@ void heater_tickChamber(const SensorData& sensors, SystemState& state) {
         chm_inner_i       = 0.0f;
         chm_last_inner_ms = now;
         chm_last_outer_ms = now - CHM_OUTER_PERIOD_MS;
+        // Rampa kreće od trenutne T ploče, ne od nule ni od starog cilja
+        chm_target  = min(sensors.t_chamber_heater, HEATER_CHM_PLATE_MAX_C);
+        chm_desired = chm_target;
     }
 
-    // --- Vanjska petlja: T komore -> ciljna T ploče ---
+    // --- Vanjska petlja: T komore -> željeni cilj ploče ---
     if (now - chm_last_outer_ms >= CHM_OUTER_PERIOD_MS) {
         const float dt = (now - chm_last_outer_ms) / 1000.0f;
         chm_last_outer_ms = now;
@@ -188,11 +245,14 @@ void heater_tickChamber(const SensorData& sensors, SystemState& state) {
             const float e   = sp - sensors.t_chamber;
             const float raw = sp + chm_offset + CHM_OUTER_KP * e;
             chm_at_limit = (raw >= HEATER_CHM_PLATE_MAX_C) && (e > 0);
-            if (!chm_at_limit) {
+            // Ne uči dok je cilj na granici ni dok ga rampa drži ispod željenog
+            // (inače se tijekom dugog zagrijavanja nakupi prevelik offset)
+            const bool ramp_holding = (chm_target < chm_desired - CHM_RAMP_HOLD_C);
+            if (!chm_at_limit && !ramp_holding) {
                 chm_offset = chmClampOffset(chm_offset + CHM_OUTER_KI * e * dt, sp);
             }
-            chm_target = constrain(sp + chm_offset + CHM_OUTER_KP * e,
-                                   0.0f, HEATER_CHM_PLATE_MAX_C);
+            chm_desired = constrain(sp + chm_offset + CHM_OUTER_KP * e,
+                                    0.0f, HEATER_CHM_PLATE_MAX_C);
             chmMaybeSave(now, sp, sensors.t_chamber);
         }
     }
@@ -200,6 +260,15 @@ void heater_tickChamber(const SensorData& sensors, SystemState& state) {
     // --- Unutarnja petlja: T ploče -> PWM ---
     const float dt_i = (now - chm_last_inner_ms) / 1000.0f;
     chm_last_inner_ms = now;
+
+    // Rampa: cilj raste najviše zadanom brzinom, pada odmah
+    if (chm_desired <= chm_target) {
+        chm_target = chm_desired;
+    } else {
+        const float rate = (chm_target >= HEATER_CHM_PLATE_MAX_C - CHM_RAMP_SLOW_BAND_C)
+                           ? CHM_RAMP_SLOW_C_PER_MIN : CHM_RAMP_FAST_C_PER_MIN;
+        chm_target = min(chm_target + rate * dt_i / 60.0f, chm_desired);
+    }
 
     const float err = chm_target - sensors.t_chamber_heater;
     const float p   = CHM_INNER_KP * err;
