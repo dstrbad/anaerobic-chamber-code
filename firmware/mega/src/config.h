@@ -81,8 +81,8 @@ constexpr float    O2_LOW_CUTOFF_PCT  = 0.05f; // values below this shown as 0
 // Kalibracija: komora bez H2, iz zapisa h2r (sirovo) i ta uzmi hladnu i toplu
 // točku: ZERO = h2r_hladno, REF = ta_hladno, TC = (h2r_toplo - h2r_hladno) / (ta_toplo - ta_hladno).
 // (Kompenzacija iz DFRobot biblioteke za H2 je neispravna — ispod 40 °C vraća 0.)
-constexpr float    H2_ZERO_PPM          = 35.0f;  // TODO: izmjeriti (sirovo očitanje na REF)
-constexpr float    H2_ZERO_REF_C        = 25.0f;
+constexpr float    H2_ZERO_PPM          = 40.0f;  // TODO: izmjeriti (sirovo očitanje na REF)
+constexpr float    H2_ZERO_REF_C        = 22.0f;
 constexpr float    H2_ZERO_TC_PPM_PER_C = 4.0f;  // TODO: izmjeriti (≈ +10 ppm od 20 do 35 °C)
 constexpr float    H2_LOW_CUTOFF_PPM    = 2.0f;   // ispod ovoga prikazuje se 0
 constexpr uint32_t I2C_TIMEOUT_US     = 25000;   // Wire timeout; bez njega zapela sabirnica blokira zauvijek
