@@ -104,6 +104,27 @@ const Toolbar = (function () {
         return window.location.search.indexOf('demo') !== -1;
     }
 
+    // --- Axis scale (auto vs. fixed sensor ranges) -----------------------------
+
+    const AXIS_MODE_KEY = 'anaerobic.axis_mode';
+
+    function initAxisMode() {
+        const select = document.getElementById('axis-mode');
+        let mode = 'auto';
+        try {
+            mode = localStorage.getItem(AXIS_MODE_KEY) === 'fixed' ? 'fixed' : 'auto';
+        } catch (e) { /* storage unavailable */ }
+        select.value = mode;
+        if (mode === 'fixed') Charts.setAxisMode('fixed');
+
+        select.addEventListener('change', () => {
+            try {
+                localStorage.setItem(AXIS_MODE_KEY, select.value);
+            } catch (e) { /* storage unavailable */ }
+            Charts.setAxisMode(select.value);
+        });
+    }
+
     // --- Server history window -------------------------------------------------
 
     let historyStatus = 'ok';
@@ -210,6 +231,7 @@ const Toolbar = (function () {
         buildPills();
         applyVisibility();
         buildHistorySelect();
+        initAxisMode();
 
         document.getElementById('range-apply').addEventListener('click', applyRange);
         document.getElementById('range-reset').addEventListener('click', resetRange);

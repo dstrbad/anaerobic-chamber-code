@@ -15,8 +15,8 @@
 static constexpr float    CAT_HYSTERESIS          = 1.0f;   // tvrdo: na SP + ovo grijač ugašen
 static constexpr float    CAT_KP                  = 40.0f;  // PWM po °C greške
 static constexpr float    CAT_KI                  = 0.3f;   // PWM po °C·s
-static constexpr float    CAT_RAMP_FAST_C_PER_MIN = 2.0f;
-static constexpr float    CAT_RAMP_SLOW_C_PER_MIN = 0.5f;
+static constexpr float    CAT_RAMP_FAST_C_PER_MIN = 4.0f;
+static constexpr float    CAT_RAMP_SLOW_C_PER_MIN = 2.0f;
 static constexpr float    CAT_RAMP_SLOW_BAND_C    = 5.0f;   // zadnjih N °C ispod SP sporije
 static constexpr uint32_t CAT_RESTART_GAP_MS      = 5000;
 
@@ -57,11 +57,11 @@ static constexpr float    CHM_SAVE_NEAR_SP_C   = 1.0f;    // spremi samo kad je 
 static constexpr uint32_t CHM_RESTART_GAP_MS   = 5000;    // pauza dulja od ovog = novo uključenje
 
 // Rampa cilja ploče: senzor grijača kasni za stvarnom T ploče, pa skok cilja
-// (npr. odmah na 52 °C) daje prebačaj na 55-56 °C. Cilj zato raste postupno
+// (npr. odmah na PLATE_MAX) daje prebačaj od 3-4 °C. Cilj zato raste postupno
 // od trenutne T ploče, a zadnjih CHM_RAMP_SLOW_BAND_C ispod PLATE_MAX još
 // sporije. Spuštanje cilja je trenutno.
-static constexpr float    CHM_RAMP_FAST_C_PER_MIN = 1.0f;
-static constexpr float    CHM_RAMP_SLOW_C_PER_MIN = 0.3f;
+static constexpr float    CHM_RAMP_FAST_C_PER_MIN = 2.0f;   // udvostručeno (1.0 bilo presporo)
+static constexpr float    CHM_RAMP_SLOW_C_PER_MIN = 0.6f;   // udvostručeno (0.3 bilo presporo)
 static constexpr float    CHM_RAMP_SLOW_BAND_C    = 5.0f;
 static constexpr float    CHM_RAMP_HOLD_C         = 0.5f;  // rampa "drži" cilj -> vanjska petlja ne uči
 

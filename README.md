@@ -94,7 +94,7 @@ Any one of the four layers is enough to stop an actuator from running away. If y
 
 **Layer 2, Timer5 safety ISR at 50 Hz.** Runs independently of the main loop. It cannot read sensors (no I2C in an ISR) but checks the cached values the main loop writes and drives actuator pins directly through port registers:
 
-- Hard thermal limits: catalyst above 60 °C or chamber heater above 55 °C forces the heater pin low.
+- Hard thermal limits: catalyst above 60 °C or chamber heater above 60 °C forces the heater pin low.
 - Hard overpressure limit forces the solenoid pin low.
 - Actuator timeouts: each actuator records when it was switched on. The main loop must call `refreshTimeout()` every iteration to prove it still wants it on. If the timestamp goes stale (for example 90 s for the pump) the ISR turns it off. This is the FSM liveness guard.
 - FSM heartbeat: each FSM stamps a heartbeat every iteration. If either FSM has not ticked in 750 ms, all actuators go off.
@@ -103,7 +103,7 @@ Any one of the four layers is enough to stop an actuator from running away. If y
 
 - Pressure response watchdog, per chamber: while the pump or valve runs, the purged chamber must change by at least 5 hPa per 1.5 s (small) or 2 hPa per 3 s (big), otherwise `NO_DP`. The other chamber must stay within 3 hPa over the same window; if it moves, a valve is open on the wrong chamber and `X_CHM` stops the pump and valve.
 - Overpressure: closes the valve and raises `OVERP`. Always above 1043 hPa absolute (1013.25 + 30), which weather never reaches, so a leaking valve or heating cannot over-inflate the gloves. During a purge the purged chamber is held to its own pressure at purge start + 25 hPa (never closer than 5 hPa to its own refill target, never above 1043). Layer 2 enforces the same per-chamber limits.
-- Overtemperature: catalyst above 60 °C or chamber heater above 55 °C turns the heater off and raises a thermal fault. The chamber heater is glued to the bottom aluminium panel, so its controller never targets more than 52 °C there.
+- Overtemperature: catalyst above 60 °C or chamber heater above 60 °C turns the heater off and raises a thermal fault. The chamber heater is glued to the bottom aluminium panel, so its controller never targets more than 55 °C there.
 - DS18B20 timeout: an invalid reading for more than 5 s while a heater is active turns it off.
 - O2 gate: a large-chamber purge is blocked if O2 is above 3 % (explosion risk with H2 over a palladium catalyst).
 - Global abort: a long button press of about one second turns off pump, valve and both heaters at once.
@@ -205,7 +205,7 @@ web/                        Dashboard: index.html, css/, js/ (no build step)
 
 ## Configuration
 
-Mega: everything is in `firmware/mega/src/config.h`. Defaults worth knowing: 7 small-purge cycles at 400 hPa drop each, 10 large-purge cycles between the start pressure −5 hPa and +10 hPa, catalyst setpoint 50 °C (cutoff 60 °C), chamber setpoint 37 °C (heater panel at most 52 °C, cutoff 55 °C), 5 s DS18B20 timeout, pressure watchdog 5 hPa per 1.5 s (small) and 2 hPa per 3 s (big) with 3 hPa cross-chamber limit, 600 s gas sensor warm-up.
+Mega: everything is in `firmware/mega/src/config.h`. Defaults worth knowing: 7 small-purge cycles at 400 hPa drop each, 10 large-purge cycles between the start pressure −5 hPa and +10 hPa, catalyst setpoint 50 °C (cutoff 60 °C), chamber setpoint 37 °C (heater panel at most 55 °C, cutoff 60 °C), 5 s DS18B20 timeout, pressure watchdog 5 hPa per 1.5 s (small) and 2 hPa per 3 s (big) with 3 hPa cross-chamber limit, 600 s gas sensor warm-up.
 
 ESP32: credentials and broker address in `secrets.h`; port, topic prefix (default `anaerobic/chamber1/`) and client ID in `config.h`.
 
@@ -239,7 +239,7 @@ SD card on the Mega: files are named `LOG0000.CSV`, `LOG0001.CSV` and so on, and
 
 Collector: every frame appended to a weekly CSV (Monday to Sunday), plus a separate full-resolution file per purge run opened on the transition into a purge state and closed when the state returns to IDLE or FAULT.
 
-History database: every frame is also inserted into `collector/data/history.sqlite3` with an epoch-millisecond timestamp. When the dashboard opens it calls `GET :8000/history?days=N` and starts with the last N days already drawn (toolbar "History" selector: 2 h, 8 h, 1, 2, 3, 7, 14 or 30 days, 1 day by default). The server downsamples the window into buckets: 2 h keeps every recorded second (7200 points), 8 h gets 9000 points (3x the 1-day resolution), 1 day and longer about 3000 points. Each bucket carries a mean, plus min/max bands for O2, both pressures and the three temperatures so short spikes stay visible. The Range Apply button fetches any older window the same way. Full 1 Hz data stays in the CSVs. On first start the collector imports the existing weekly CSVs into the database once.
+History database: every frame is also inserted into `collector/data/history.sqlite3` with an epoch-millisecond timestamp. When the dashboard opens it calls `GET :8000/history?days=N` and starts with the last N days already drawn (toolbar "History" selector: 2 h, 8 h, 1, 2, 3, 7, 14 or 30 days, 1 day by default). The server downsamples the window into buckets: 2 h keeps every recorded second (7200 points), 8 h gets 9000 points (3x the 1-day resolution), 1 day and longer about 3000 points. Each bucket carries a mean, plus min/max bands for O2, both pressures and the three temperatures so short spikes stay visible. The Range Apply button fetches any older window the same way. Full 1 Hz data stays in the CSVs. On first start the collector imports the existing weekly CSVs into the database once. The toolbar "Scale" selector switches the charts between auto-fitted axes and fixed sensor ranges (O2 0–30 %, other gases 0–1000 ppm, pressure 0–1100 hPa, temperature 0–70 °C).
 
 Retention: when a new week starts and the weekly CSVs plus the database exceed `DATA_LIMIT_GB` (default 32), the oldest week is deleted, both the CSV and its database rows. At about 26 MB per day that is roughly three years of data. Per-run CSVs are never deleted.
 

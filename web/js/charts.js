@@ -53,6 +53,26 @@ const Charts = {
         ];
     },
 
+    // "Sensor range" view: y axes fixed to each sensor's measuring range, so
+    // traces are comparable at a glance instead of each axis fitting its data.
+    fixedRanges: {
+        'chart-gas':      { 'yaxis.range': [0, 30], 'yaxis2.range': [0, 1000] }, // O2 %, other gases ppm
+        'chart-pressure': { 'yaxis.range': [0, 1100] },                          // hPa
+        'chart-temp':     { 'yaxis.range': [0, 70] },                            // °C
+    },
+
+    setAxisMode(mode) {
+        this.chartIds.forEach(id => {
+            if (mode === 'fixed') {
+                Plotly.relayout(id, this.fixedRanges[id]);
+            } else {
+                const update = { 'yaxis.autorange': true };
+                if (id === 'chart-gas') update['yaxis2.autorange'] = true;
+                Plotly.relayout(id, update);
+            }
+        });
+    },
+
     setRange(start, end) {
         const update = (start && end)
             ? { 'xaxis.range': [start, end] }

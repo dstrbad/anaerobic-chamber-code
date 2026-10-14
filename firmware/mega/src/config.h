@@ -83,8 +83,8 @@ constexpr float    O2_LOW_CUTOFF_PCT  = 0.05f; // values below this shown as 0
 // (Kompenzacija iz DFRobot biblioteke za H2 je neispravna — ispod 40 °C vraća 0.)
 constexpr float    H2_ZERO_PPM          = 40.0f;  // TODO: izmjeriti (sirovo očitanje na REF)
 constexpr float    H2_ZERO_REF_C        = 22.0f;
-constexpr float    H2_ZERO_TC_PPM_PER_C = 4.0f;  // TODO: izmjeriti (≈ +10 ppm od 20 do 35 °C)
-constexpr float    H2_LOW_CUTOFF_PPM    = 2.0f;   // ispod ovoga prikazuje se 0
+constexpr float    H2_ZERO_TC_PPM_PER_C = 4.0f;  // TODO: izmjeriti (≈ +20 ppm od 25 do 30 °C)
+constexpr float    H2_LOW_CUTOFF_PPM    = 5.0f;   // ispod ovoga prikazuje se 0
 constexpr uint32_t I2C_TIMEOUT_US     = 25000;   // Wire timeout; bez njega zapela sabirnica blokira zauvijek
 constexpr float    P_PLAUSIBLE_MIN_HPA = 300.0f; // Sirovo očitanje BMP280 izvan raspona = neispravno
 constexpr float    P_PLAUSIBLE_MAX_HPA = 1200.0f;
@@ -116,12 +116,12 @@ constexpr float    HEATER_CAT_SETPOINT_MAX_C = 58.0f;   // 2C ispod tvrdog isklo
 constexpr float    HEATER_CHM_SETPOINT_C    = 37.0f;    // Tvornička zadana vrijednost komore
 constexpr float    HEATER_CHM_SETPOINT_MIN_C = 25.0f;
 constexpr float    HEATER_CHM_SETPOINT_MAX_C = 43.0f;   // Zadana T zraka u komori (ne ploče grijača)
-constexpr float    HEATER_CAT_MAX_C         = 60.0f;    // Sigurnosni isklop
+constexpr float    HEATER_CAT_MAX_C         = 65.0f;    // Sigurnosni isklop
 // Grijač komore je zalijepljen na donju aluminijsku ploču koju ljudi mogu
 // dodirnuti. Regulacija nikad ne cilja iznad PLATE_MAX; MAX je tvrdi isklop
 // (sloj 2 + 3) na senzoru grijača, s rezervom za prebačaj.
-constexpr float    HEATER_CHM_PLATE_MAX_C   = 52.0f;    // Najviša ciljna T ploče grijača
-constexpr float    HEATER_CHM_MAX_C         = 55.0f;    // Sigurnosni isklop (senzor grijača)
+constexpr float    HEATER_CHM_PLATE_MAX_C   = 55.0f;    // Najviša ciljna T ploče grijača (52 nije bilo dovoljno za 37 °C u komori)
+constexpr float    HEATER_CHM_MAX_C         = 60.0f;    // Sigurnosni isklop + greška OT_CHM (senzor grijača)
 
 // --- EEPROM postavke ---------------------------------------------------------
 constexpr uint16_t EEPROM_ADDR_MAGIC        = 0;

@@ -49,7 +49,7 @@ Bilo koji od četiri sloja dovoljan je da spriječi nekontrolirani rad aktuatora
 
 **Sloj 1, watchdog timer.** WDT na ATmega2560 postavljen je na 1 s i resetira se na kraju svake iteracije `loop()`. Ako petlja zastane, MCU se tvrdo resetira, svi GPIO pinovi se vraćaju u LOW i svi aktuatori se gase.
 
-**Sloj 2, Timer5 ISR na 50 Hz.** Radi neovisno o glavnoj petlji. Ne čita senzore (nema I2C u ISR-u), nego provjerava spremljene vrijednosti i izravno upravlja pinovima preko registara portova: tvrdi termalni limiti (katalizator 60 °C, grijač komore 55 °C), tvrdi limit pretlaka, istek aktuatora (glavna petlja mora svaku iteraciju pozvati `refreshTimeout()`, inače ISR gasi aktuator, npr. nakon 90 s za pumpu) i provjera živosti FSM-ova (bez otkucaja 750 ms gase se svi aktuatori).
+**Sloj 2, Timer5 ISR na 50 Hz.** Radi neovisno o glavnoj petlji. Ne čita senzore (nema I2C u ISR-u), nego provjerava spremljene vrijednosti i izravno upravlja pinovima preko registara portova: tvrdi termalni limiti (katalizator 60 °C, grijač komore 60 °C), tvrdi limit pretlaka, istek aktuatora (glavna petlja mora svaku iteraciju pozvati `refreshTimeout()`, inače ISR gasi aktuator, npr. nakon 90 s za pumpu) i provjera živosti FSM-ova (bez otkucaja 750 ms gase se svi aktuatori).
 
 **Sloj 3, modul `safety.cpp` u glavnoj petlji.** Jedini sloj s punim kontekstom; postavlja kodove grešaka i pokreće prijelaze FSM-a. Nadzornik tlačnog odziva po komori (komora koja se pročišćava mora promijeniti tlak barem 5 hPa u 1,5 s za malu ili 2 hPa u 3 s za veliku, a druga komora ne smije se pomaknuti više od 3 hPa u istom prozoru, inače greška `X_CHM` zbog krivo otvorenog ventila), pretlak (zatvara ventil i diže `OVERP`: uvijek iznad 1043 hPa apsolutno, a tijekom purge-a komora koja se pročišćava iznad svog tlaka na početku purge-a + 25 hPa), pregrijavanje, istek DS18B20 (nevaljano očitanje dulje od 5 s uz aktivni grijač), O2 vrata (pročišćavanje velike komore blokirano ako je O2 iznad 3 % zbog opasnosti od eksplozije H2 na paladijskom katalizatoru) i globalni prekid dugim pritiskom tipkala.
 
@@ -79,7 +79,7 @@ web/                        Nadzorna ploča bez procesa izgradnje
 
 ## Konfiguracija
 
-Mega: sve je u `firmware/mega/src/config.h`. Zadane vrijednosti: 7 ciklusa malog pročišćavanja po 400 hPa, 10 ciklusa velikog između početnog tlaka −5 hPa i +10 hPa, katalizator 50 °C (isklop 60 °C), komora 37 °C (ploča grijača najviše 52 °C, isklop 55 °C), istek DS18B20 5 s, tlačni nadzornik 5 hPa u 1,5 s (mala) i 2 hPa u 3 s (velika), druga komora najviše 3 hPa, zagrijavanje plinskih senzora 600 s.
+Mega: sve je u `firmware/mega/src/config.h`. Zadane vrijednosti: 7 ciklusa malog pročišćavanja po 400 hPa, 10 ciklusa velikog između početnog tlaka −5 hPa i +10 hPa, katalizator 50 °C (isklop 60 °C), komora 37 °C (ploča grijača najviše 55 °C, isklop 60 °C), istek DS18B20 5 s, tlačni nadzornik 5 hPa u 1,5 s (mala) i 2 hPa u 3 s (velika), druga komora najviše 3 hPa, zagrijavanje plinskih senzora 600 s.
 
 ESP32: pristupni podaci i adresa brokera u `secrets.h`; port, prefiks tema (zadano `anaerobic/chamber1/`) i ID klijenta u `config.h`.
 

@@ -94,6 +94,13 @@
             <span id="history-status" class="toolbar-status"></span>
         </div>
         <div class="toolbar-group">
+            <span class="toolbar-label" data-i18n="toolbar.scale">Skala</span>
+            <select id="axis-mode" class="toolbar-input">
+                <option value="auto" data-i18n="toolbar.scale_auto">Automatska</option>
+                <option value="fixed" data-i18n="toolbar.scale_fixed">Raspon senzora</option>
+            </select>
+        </div>
+        <div class="toolbar-group">
             <span class="toolbar-label" data-i18n="toolbar.range">Raspon</span>
             <input type="datetime-local" id="range-from" class="toolbar-input" step="1">
             <span class="toolbar-sep">–</span>
