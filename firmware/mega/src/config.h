@@ -112,7 +112,7 @@ constexpr uint32_t PURGE_BIG_TIMEOUT_MS     = 90000;    // 90s po fazi
 
 constexpr float    HEATER_CAT_SETPOINT_C    = 50.0f;    // Tvornička zadana vrijednost katalizatora
 constexpr float    HEATER_CAT_SETPOINT_MIN_C = 40.0f;   // Donja granica (ispod ovog katalizator slabo radi)
-constexpr float    HEATER_CAT_SETPOINT_MAX_C = 58.0f;   // 2C ispod tvrdog isklopa
+constexpr float    HEATER_CAT_SETPOINT_MAX_C = 58.0f;   // 7 °C ispod tvrdog isklopa (HEATER_CAT_MAX_C)
 constexpr float    HEATER_CHM_SETPOINT_C    = 37.0f;    // Tvornička zadana vrijednost komore
 constexpr float    HEATER_CHM_SETPOINT_MIN_C = 25.0f;
 constexpr float    HEATER_CHM_SETPOINT_MAX_C = 43.0f;   // Zadana T zraka u komori (ne ploče grijača)

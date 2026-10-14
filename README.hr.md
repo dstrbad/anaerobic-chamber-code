@@ -47,15 +47,15 @@ Bilo koji od četiri sloja dovoljan je da spriječi nekontrolirani rad aktuatora
 
 **Sloj 0, hardverski termalni prekidači.** Fizički prekidači na oba grijača isključuju napajanje bez softvera.
 
-**Sloj 1, watchdog timer.** WDT na ATmega2560 postavljen je na 1 s i resetira se na kraju svake iteracije `loop()`. Ako petlja zastane, MCU se tvrdo resetira, svi GPIO pinovi se vraćaju u LOW i svi aktuatori se gase.
+**Sloj 1, watchdog timer.** WDT na ATmega2560 radi s istekom od 8 s tijekom `setup()` i 2 s u glavnoj petlji, a resetira se na kraju svake iteracije `loop()`. Ako petlja zastane, MCU se tvrdo resetira; pinovi prelaze u stanje visoke impedancije, pull-down otpornici drže aktuatore ugašenima, a `setup()` ih zatim prvo postavlja u LOW. WDT reset ne može prijeći u beskonačnu petlju resetiranja jer se odmah nakon reseta (`.init3`) spremi uzrok reseta i ugasi watchdog.
 
-**Sloj 2, Timer5 ISR na 50 Hz.** Radi neovisno o glavnoj petlji. Ne čita senzore (nema I2C u ISR-u), nego provjerava spremljene vrijednosti i izravno upravlja pinovima preko registara portova: tvrdi termalni limiti (katalizator 60 °C, grijač komore 60 °C), tvrdi limit pretlaka, istek aktuatora (glavna petlja mora svaku iteraciju pozvati `refreshTimeout()`, inače ISR gasi aktuator, npr. nakon 90 s za pumpu) i provjera živosti FSM-ova (bez otkucaja 750 ms gase se svi aktuatori).
+**Sloj 2, Timer5 ISR na 50 Hz.** Radi neovisno o glavnoj petlji. Ne čita senzore (nema I2C u ISR-u), nego provjerava spremljene vrijednosti i izravno upravlja pinovima preko registara portova: tvrdi termalni limiti (katalizator 65 °C, grijač komore 60 °C; Timer5 generira i PWM grijača, pa ISR prvo odspaja PWM pa tek onda spušta pin), tvrdi limit pretlaka (iste granice po komori kao sloj 3), istek aktuatora (glavna petlja mora ga svaku iteraciju osvježiti, inače ga ISR gasi nakon 90 s) i provjera živosti FSM-ova (bez otkucaja 750 ms gase se svi aktuatori).
 
 **Sloj 3, modul `safety.cpp` u glavnoj petlji.** Jedini sloj s punim kontekstom; postavlja kodove grešaka i pokreće prijelaze FSM-a. Nadzornik tlačnog odziva po komori (komora koja se pročišćava mora promijeniti tlak barem 5 hPa u 1,5 s za malu ili 2 hPa u 3 s za veliku, a druga komora ne smije se pomaknuti više od 3 hPa u istom prozoru, inače greška `X_CHM` zbog krivo otvorenog ventila), pretlak (zatvara ventil i diže `OVERP`: uvijek iznad 1043 hPa apsolutno, a tijekom purge-a komora koja se pročišćava iznad svog tlaka na početku purge-a + 25 hPa), pregrijavanje, istek DS18B20 (nevaljano očitanje dulje od 5 s uz aktivni grijač), O2 vrata (pročišćavanje velike komore blokirano ako je O2 iznad 3 % zbog opasnosti od eksplozije H2 na paladijskom katalizatoru) i globalni prekid dugim pritiskom tipkala.
 
 ## Početak rada
 
-Potrebni su [PlatformIO CLI](https://platformio.org/install/cli) ili VS Code ekstenzija, [Mosquitto](https://mosquitto.org/download/) ili Docker, Python 3.8 ili noviji te obje ploče na USB-u.
+Potrebni su [PlatformIO CLI](https://platformio.org/install/cli) ili VS Code ekstenzija, [Mosquitto](https://mosquitto.org/download/) ili Docker, Python 3.10 ili noviji (samo ako collector radi bez Dockera) te obje ploče na USB-u.
 
 1. **Mapiranje hardvera.** `make discovery` programira skicu koja skenira I2C sabirnicu i sve mux kanale, ispisuje ROM ID-eve DS18B20 sondi, čita oba BMP280 i ispisuje analogne ulaze. Prepišite ROM ID-eve u `firmware/mega/src/config.h` i pridružite ih sondama grijući svaku zasebno.
 2. **Mega.** `make flash-mega`, zatim `make monitor-mega`.
@@ -79,7 +79,7 @@ web/                        Nadzorna ploča bez procesa izgradnje
 
 ## Konfiguracija
 
-Mega: sve je u `firmware/mega/src/config.h`. Zadane vrijednosti: 7 ciklusa malog pročišćavanja po 400 hPa, 10 ciklusa velikog između početnog tlaka −5 hPa i +10 hPa, katalizator 50 °C (isklop 60 °C), komora 37 °C (ploča grijača najviše 55 °C, isklop 60 °C), istek DS18B20 5 s, tlačni nadzornik 5 hPa u 1,5 s (mala) i 2 hPa u 3 s (velika), druga komora najviše 3 hPa, zagrijavanje plinskih senzora 600 s.
+Mega: sve je u `firmware/mega/src/config.h`. Zadane vrijednosti: 7 ciklusa malog pročišćavanja po 400 hPa, 10 ciklusa velikog između početnog tlaka −5 hPa i +10 hPa, katalizator 50 °C (isklop 65 °C), komora 37 °C (ploča grijača najviše 55 °C, isklop 60 °C), istek DS18B20 5 s, tlačni nadzornik 5 hPa u 1,5 s (mala) i 2 hPa u 3 s (velika), druga komora najviše 3 hPa, zagrijavanje plinskih senzora 600 s.
 
 ESP32: pristupni podaci i adresa brokera u `secrets.h`; port, prefiks tema (zadano `anaerobic/chamber1/`) i ID klijenta u `config.h`.
 
@@ -87,11 +87,17 @@ Kolektor: `MQTT_BROKER`, `MQTT_PORT`, `MQTT_TOPIC`, `DATA_DIR`, `TEMPLATES_PATH`
 
 ## MQTT teme
 
-Sve teme su pod prefiksom `anaerobic/chamber1/`. Senzori: `sensor/o2`, `sensor/h2`, `sensor/h2s`, `sensor/o3`, `sensor/co2`, `sensor/pressure_big`, `sensor/pressure_small`, `sensor/temp_catalyst`, `sensor/temp_heater`, `sensor/temp_chamber`. Status: `status/state` (`INIT`, `IDLE`, `PURGE_S`, `PURGE_B`, `FAULT`), `status/thermal` (`OFF`, `CAT`, `CHM`, `BOTH`, `FAULT`), `status/fault` (kod greške ili `NONE`), `status/purge_progress`, `status/uptime`, `status/warmup`. Aktuatori: `actuator/pump`, `actuator/solenoid`, `actuator/catalyst_pwm`, `actuator/chamber_pwm`. Naredbe (bez retain): `command/purge` (`small` ili `big`), `command/heat` (`{"target": "catalyst", "sp": 50}`), `command/abort`. Tema `bulk` nosi cijeli okvir u JSON-u. Puna tablica je u engleskoj verziji.
+Sve teme su pod prefiksom `anaerobic/chamber1/`. Senzori: `sensor/o2`, `sensor/h2`, `sensor/h2s`, `sensor/o3`, `sensor/co2`, `sensor/pressure_big`, `sensor/pressure_small`, `sensor/temp_catalyst`, `sensor/temp_heater`, `sensor/temp_chamber`. Status: `status/state` (`INIT`, `IDLE`, `PURGE_S`, `PURGE_B`, `FAULT`), `status/thermal` (`OFF`, `CAT`, `CHM`, `BOTH`, `FAULT`), `status/fault` (kod greške ili `NONE`), `status/purge_progress`, `status/uptime`, `status/warmup`. Aktuatori: `actuator/pump`, `actuator/solenoid`, `actuator/catalyst_pwm`, `actuator/chamber_pwm`. ESP32 objavljuje uzrok svog zadnjeg reseta na `status/esp_reset`. Naredbe (bez retain) su JSON objekti s poljem `cmd` na `command/<glagol>`, npr. `{"cmd":"purge","v":"small"}`, `{"cmd":"set_chm_sp","v":37}`, `{"cmd":"abort"}`; jedini validator je `serial_rx.cpp` na Megi. Tema `bulk` nosi cijeli okvir u JSON-u. Puna tablica tema i naredbi je u engleskoj verziji.
 
 ## Stanje i ograničenja
 
-Ovo je radni prototip za jednu komoru u jednom laboratoriju, ne proizvod. Mosquitto dopušta anonimni pristup, a API predložaka ima otvoren CORS; to je u redu na radnoj stanici i pogrešno za bilo što dostupno izvana. Adrese senzora, ROM ID-evi i pinovi vrijede za ovaj konkretan sklop i na drugom hardveru ih treba ponovno mapirati discovery skicom.
+Ovo je radni prototip za jednu komoru u jednom laboratoriju, ne proizvod. Mosquitto dopušta anonimni pristup, a HTTP API ima otvoren CORS; to je u redu na radnoj stanici i pogrešno za bilo što dostupno izvana. Adrese senzora, ROM ID-evi i pinovi vrijede za ovaj konkretan sklop i na drugom hardveru ih treba ponovno mapirati discovery skicom.
+
+Vrijednosti koje ovise o pojedinom sklopu i treba ih provjeriti na svakoj komori (označene s `TODO` u `config.h`): offseti tlaka, kalibracija nule H2 te pridruživanje triju DS18B20 ROM ID-eva sondama. Pojačanja regulatora i brzine rampi su početne vrijednosti podešene na jednoj komori. Uz granicu ploče od 55 °C komora u laboratoriju na 20 °C doseže oko 37 °C, s malo rezerve; aluminij na 55 °C može opeći kožu nakon otprilike 10 s dodira, pa zagrijanu donju ploču treba zaštititi ili označiti.
+
+## Citiranje
+
+Ako koristite ovaj hardver ili softver, citirajte članak u časopisu HardwareX; puni zapis (i BibTeX) nalazi se u [engleskoj verziji](README.md#citation). Verzija koda opisana u članku označena je oznakom `hardwarex-v1.0`.
 
 ## Licenca
 
