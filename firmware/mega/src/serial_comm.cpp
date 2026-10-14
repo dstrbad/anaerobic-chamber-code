@@ -65,6 +65,7 @@ void serial_comm_send(const SensorData& sensors, const SystemState& state) {
     // Plinski senzori
     addFloat("o2",  sensors.o2_pct, 2);
     addFloat("h2",  sensors.h2_ppm, 0);
+    addFloat("h2r", sensors.h2_raw_ppm, 0);   // sirovo H2, za kalibraciju nule
     addFloat("h2s", sensors.h2s_ppm, 2);
     addFloat("o3",  sensors.o3_ppm, 2);
     addFloat("co2", sensors.eco2_ppm, 0);

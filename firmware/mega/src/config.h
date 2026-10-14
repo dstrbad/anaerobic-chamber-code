@@ -75,6 +75,16 @@ constexpr float    GAS_SAMPLE_HZ     = 1.0f;
 constexpr float    PRESSURE_SAMPLE_HZ = 10.0f;
 constexpr float    O2_ZERO_OFFSET_PCT = 0.6f;  // measured raw value in anaerobic state
 constexpr float    O2_LOW_CUTOFF_PCT  = 0.05f; // values below this shown as 0
+// H2 (SEN0473): nula senzora nije 0 i raste s temperaturom (~40 ppm na sobnoj,
+// ~50 ppm kad je komora zagrijana). Oduzima se nula(T) = ZERO + TC * (T - REF),
+// T = temperatura zraka u komori (ta). Bez valjane ta oduzima se samo ZERO.
+// Kalibracija: komora bez H2, iz zapisa h2r (sirovo) i ta uzmi hladnu i toplu
+// točku: ZERO = h2r_hladno, REF = ta_hladno, TC = (h2r_toplo - h2r_hladno) / (ta_toplo - ta_hladno).
+// (Kompenzacija iz DFRobot biblioteke za H2 je neispravna — ispod 40 °C vraća 0.)
+constexpr float    H2_ZERO_PPM          = 45.0f;  // TODO: izmjeriti (sirovo očitanje na REF)
+constexpr float    H2_ZERO_REF_C        = 20.0f;
+constexpr float    H2_ZERO_TC_PPM_PER_C = 0.87f;  // TODO: izmjeriti (≈ +10 ppm od 20 do 35 °C)
+constexpr float    H2_LOW_CUTOFF_PPM    = 2.0f;   // ispod ovoga prikazuje se 0
 constexpr uint32_t I2C_TIMEOUT_US     = 25000;   // Wire timeout; bez njega zapela sabirnica blokira zauvijek
 constexpr float    P_PLAUSIBLE_MIN_HPA = 300.0f; // Sirovo očitanje BMP280 izvan raspona = neispravno
 constexpr float    P_PLAUSIBLE_MAX_HPA = 1200.0f;
@@ -178,5 +188,5 @@ constexpr uint32_t SERIAL_BAUD_ESP32        = 115200;
 #define SERIAL_DEBUG_TX 0
 
 // --- Offset za tlak ---------------------------------------------------
-constexpr float P_BIG_OFFSET_HPA   = 0.0f;   // TODO: izmjeriti na komori (stari -55.5 bio je za dijeljenu kalibraciju)
+constexpr float P_BIG_OFFSET_HPA   = -0.2f;   // TODO: izmjeriti na komori (stari -55.5 bio je za dijeljenu kalibraciju)
 constexpr float P_SMALL_OFFSET_HPA = 0.0f;   // TODO: izmjeriti na komori (stari +11.5)

@@ -362,7 +362,17 @@ void sensors_pollGas(SensorData& data) {
 
         data.o2_pct = corrected; // corrected/display value
     }
-    if (gasCollect(gas_h2_ok,  I2C_H2_ADDR,  val)) data.h2_ppm  = val;
+    if (gasCollect(gas_h2_ok, I2C_H2_ADDR, val)) {
+        data.h2_raw_ppm = val;
+        // Nula senzora ovisi o temperaturi zraka u komori (vidi config.h)
+        float zero = H2_ZERO_PPM;
+        if (data.t_chamber_valid) {
+            zero += H2_ZERO_TC_PPM_PER_C * (data.t_chamber - H2_ZERO_REF_C);
+        }
+        float corrected = val - zero;
+        if (corrected < H2_LOW_CUTOFF_PPM) corrected = 0.0f;
+        data.h2_ppm = corrected;
+    }
     if (gasCollect(gas_h2s_ok, I2C_H2S_ADDR, val)) data.h2s_ppm = val;
     if (gasCollect(gas_o3_ok,  I2C_O3_ADDR,  val)) data.o3_ppm  = val;
 
