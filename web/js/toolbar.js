@@ -121,15 +121,15 @@ const Toolbar = (function () {
     function buildHistorySelect() {
         const select = document.getElementById('history-days');
         select.innerHTML = '';
-        ServerHistory.DAY_OPTIONS.forEach(n => {
+        ServerHistory.WINDOWS.forEach(w => {
             const opt = document.createElement('option');
-            opt.value = String(n);
-            opt.textContent = n + ' d';
+            opt.value = w.id;
+            opt.textContent = w.label;
             select.appendChild(opt);
         });
-        select.value = String(ServerHistory.getDays());
+        select.value = ServerHistory.getWindow().id;
         select.addEventListener('change', () => {
-            ServerHistory.setDays(parseInt(select.value, 10));
+            ServerHistory.setWindow(select.value);
             document.getElementById('range-from').value = '';
             document.getElementById('range-to').value = '';
             Charts.setRange(null, null);
