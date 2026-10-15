@@ -1,0 +1,44 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+title: "anaerobic-chamber-code: firmware and monitoring software for AnaeroLab"
+version: 1.0.0
+date-released: 2026-10-15
+license: MIT
+repository-code: "https://github.com/dstrbad/anaerobic-chamber-code"
+abstract: >-
+  Firmware and monitoring software for AnaeroLab, an open-source anaerobic
+  chamber with continuous environmental monitoring and layered safety control.
+  Includes the Arduino Mega 2560 firmware (sensing, gas handling, heater control
+  and safety logic), the Arduino Nano ESP32 Wi-Fi/MQTT bridge, a Python
+  MQTT-to-CSV data collector, a browser-based dashboard and the Docker
+  configuration for the monitoring stack. Version 1.0.0 is the version described
+  in the accompanying HardwareX article.
+keywords:
+  - open hardware
+  - anaerobic chamber
+  - anaerobic workstation
+  - environmental monitoring
+  - laboratory automation
+  - Arduino
+  - MQTT
+authors:
+  - family-names: Visentin
+    given-names: David
+    affiliation: "Faculty of Biotechnology and Drug Development, University of Rijeka"
+  - family-names: Strbad
+    given-names: Dejan
+    affiliation: "Sirius d.o.o."
+references:
+  - type: data
+    title: "AnaeroLab: an open-source, low-cost anaerobic chamber with continuous monitoring and layered safety control (design files)"
+    doi: 10.5281/zenodo.23164396
+    authors:
+      - family-names: Visentin
+        given-names: David
+      - family-names: Strbad
+        given-names: Dejan
+      - family-names: Lovrić
+        given-names: Mario
+      - family-names: Maglica
+        given-names: Željka

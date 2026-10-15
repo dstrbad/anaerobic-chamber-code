@@ -54,13 +54,20 @@ const Settings = (function () {
         modal.classList.add('hidden');
     }
 
+    // Mirrors safety_isBigPurgeAllowed on the Mega (which is the real gate):
+    // gas sensors warmed up, O2 reading valid (o2v), O2 at most 3 %.
     function refreshPurgeAvailability() {
-        const o2 = lastState ? parseFloat(lastState.o2) : NaN;
         const big = document.getElementById('settings-purge-big');
         if (!big) return;
-        const blocked = isFinite(o2) && o2 > 3.0;
-        big.disabled = blocked;
-        big.title = blocked ? I18n.t('settings.big_blocked') : '';
+        let reason = null;
+        if (lastState) {
+            const o2 = parseFloat(lastState.o2);
+            if (lastState.wu > 0) reason = 'settings.big_blocked_warmup';
+            else if (lastState.o2v === 0) reason = 'settings.big_blocked_sensor';
+            else if (isFinite(o2) && o2 > 3.0) reason = 'settings.big_blocked';
+        }
+        big.disabled = reason !== null;
+        big.title = reason ? I18n.t(reason) : '';
     }
 
     // --- Commands -------------------------------------------------------------

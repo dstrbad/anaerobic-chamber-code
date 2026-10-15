@@ -64,6 +64,7 @@ void serial_comm_send(const SensorData& sensors, const SystemState& state) {
 
     // Plinski senzori
     addFloat("o2",  sensors.o2_pct, 2);
+    addUint("o2v",  safety_isO2Reliable(sensors) ? 1 : 0); // O2 pouzdan (zagrijan + svježe očitanje)
     addFloat("h2",  sensors.h2_ppm, 0);
     addFloat("h2r", sensors.h2_raw_ppm, 0);   // sirovo H2, za kalibraciju nule
     addFloat("h2s", sensors.h2s_ppm, 2);

@@ -80,6 +80,8 @@ void safety_init();
 void safety_check(const SensorData& sensors, SystemState& state);
 void safety_handleIsrFault(SystemState& state);
 bool safety_isBigPurgeAllowed(const SensorData& sensors);
+// O2 senzor zagrijan i dao je ispravno očitanje unutar O2_VALID_TIMEOUT_MS
+bool safety_isO2Reliable(const SensorData& sensors);
 
 const char* faultCodeToString(FaultCode code);
 const char* opsStateToString(OpsState state);

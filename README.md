@@ -110,7 +110,7 @@ Any one of the four layers is enough to stop an actuator from running away. If y
 - Overtemperature: catalyst above 65 °C or chamber heater above 60 °C turns the heater off and raises a thermal fault (`OT_CAT`, `OT_CHM`). The chamber heater is glued to the bottom aluminium panel, so its controller never targets more than 55 °C there.
 - DS18B20 timeout: an invalid reading for more than 5 s while a heater is active turns it off (`TS_CAT`, `TS_CHM`).
 - Timer5 self-check: if the safety timer is stopped or reconfigured, or its ISR stops running for 100 ms, everything turns off (`TMR5`).
-- O2 gate: a large-chamber purge is blocked if O2 is above 3 % (explosion risk with H2 over a palladium catalyst).
+- O2 gate: a large-chamber purge is blocked unless the O2 reading is trustworthy and low: the gas sensors must have finished warming up, the O2 sensor must have given a valid reading within the last 5 s (`o2v` = 1 in the frame), and O2 must be at most 3 % (explosion risk with H2 over a palladium catalyst). A broken or missing O2 sensor therefore blocks the big purge instead of reading as 0 %.
 - Emergency stop: a long button press (about 1 s) or the dashboard Abort button. During a purge it stops the pump and valve and keeps the heaters on (a long press returns to IDLE, a dashboard abort latches `ABORT`); outside a purge it turns everything off and latches `ABORT`.
 
 All faults latch and are cleared only by a button press on the device; remote commands cannot clear them.

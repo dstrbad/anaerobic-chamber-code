@@ -353,6 +353,7 @@ void sensors_pollGas(SensorData& data) {
     float val;
     if (gasCollect(gas_o2_ok, I2C_O2_ADDR, val)) {
         data.o2_raw_pct = val;  // raw SEN0465 value, %Vol
+        data.o2_ok_ms   = millis();
 
         float corrected = val - O2_ZERO_OFFSET_PCT;
 

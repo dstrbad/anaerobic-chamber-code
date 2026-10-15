@@ -7,6 +7,7 @@ struct SensorData {
     // Plinski senzori
     float o2_pct       = 0.0f;
     float o2_raw_pct   = 0.0f;
+    uint32_t o2_ok_ms  = 0;      // millis() zadnjeg ispravnog O2 očitanja (0 = nikad)
     float h2_ppm       = 0.0f;   // korigirano (nula ovisna o temperaturi oduzeta)
     float h2_raw_ppm   = 0.0f;   // sirovo očitanje senzora (za kalibraciju nule)
     float h2s_ppm      = 0.0f;

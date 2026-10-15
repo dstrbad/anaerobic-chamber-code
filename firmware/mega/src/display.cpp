@@ -151,9 +151,15 @@ static void renderMenuPurge(const SensorData& sensors, const SystemState& state)
         u8g2.drawStr(8, 22, "Pokreni mali");
         u8g2.drawStr(8, 34, "Pokreni veliki");
 
-        // Upozorenje ako veliki purge nije moguć
-        if (sensors.o2_pct > O2_BIG_PURGE_MAX_PCT && state.menu_cursor == 1) {
-            u8g2.drawStr(8, 46, "! O2 previsok !");
+        // Upozorenje ako veliki purge nije moguć (isti uvjeti kao safety_isBigPurgeAllowed)
+        if (state.menu_cursor == 1) {
+            if (!sensors.gas_warmed_up) {
+                u8g2.drawStr(8, 46, "! O2 se zagrijava !");
+            } else if (!safety_isO2Reliable(sensors)) {
+                u8g2.drawStr(8, 46, "! O2 senzor greska !");
+            } else if (sensors.o2_pct > O2_BIG_PURGE_MAX_PCT) {
+                u8g2.drawStr(8, 46, "! O2 previsok !");
+            }
         }
 
         u8g2.drawStr(8, 58, "Nazad");

@@ -134,6 +134,10 @@ constexpr uint8_t  EEPROM_MAGIC_VALUE       = 0xA5;
 // --- Sigurnosni pragovi ------------------------------------------------------
 
 constexpr float    O2_BIG_PURGE_MAX_PCT     = 3.0f;     // Blokada velikog purge-a iznad ovog
+// Veliki purge (H2 + paladijski katalizator) smije krenuti samo uz pouzdano
+// očitanje O2: senzor zagrijan i ispravno očitanje unutar ovog vremena.
+// Bez toga bi pokvaren senzor (o2_pct ostaje 0) propustio purge.
+constexpr uint32_t O2_VALID_TIMEOUT_MS      = 5000;
 // Nadzor tlačnog odziva dok rade pumpa/solenoid, po komori:
 //  - komora koja se pročišćava mora promijeniti tlak barem DP_MIN u prozoru
 //    (pumpa/ventil stvarno djeluju),

@@ -192,8 +192,16 @@ void safety_handleIsrFault(SystemState& state) {
     state.thermal = ThermalState::HEAT_FAULT;
 }
 
+bool safety_isO2Reliable(const SensorData& sensors) {
+    if (!sensors.gas_warmed_up) return false;
+    if (sensors.o2_ok_ms == 0) return false;  // senzor nikad nije dao ispravno očitanje
+    return (millis() - sensors.o2_ok_ms) <= O2_VALID_TIMEOUT_MS;
+}
+
+// Veliki purge: O2 mora biti pouzdano izmjeren (zagrijan senzor, svježe
+// ispravno očitanje) i ispod praga. Pokvaren senzor ili zagrijavanje = blokada.
 bool safety_isBigPurgeAllowed(const SensorData& sensors) {
-    return sensors.o2_pct <= O2_BIG_PURGE_MAX_PCT;
+    return safety_isO2Reliable(sensors) && sensors.o2_pct <= O2_BIG_PURGE_MAX_PCT;
 }
 
 const char* faultCodeToString(FaultCode code) {
