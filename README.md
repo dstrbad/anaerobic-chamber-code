@@ -323,7 +323,7 @@ If you use this hardware or software, please cite the HardwareX article:
 }
 ```
 
-The source code of the version described in the article is tagged `hardwarex-v1.0` and archived at https://doi.org/[Zenodo DOI].
+The source code of the version described in the article is tagged `hardwarex-v1.0` and archived at https://doi.org/0.5281/zenodo.23394703.
 
 ## License
 
