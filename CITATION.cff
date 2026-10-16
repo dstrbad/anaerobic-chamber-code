@@ -29,9 +29,9 @@ authors:
   - family-names: Strbad
     given-names: Dejan
     affiliation: "Sirius d.o.o."
-references:
+references for desighn files:
   - type: data
-    title: "AnaeroLab: an open-source, low-cost anaerobic chamber with continuous monitoring and layered safety control (design files)"
+    title: "AnaeroLab: an open-source, low-cost anaerobic workstation with continuous monitoring, remote access and layered safety control"
     doi: 10.5281/zenodo.23164396
     authors:
       - family-names: Visentin
